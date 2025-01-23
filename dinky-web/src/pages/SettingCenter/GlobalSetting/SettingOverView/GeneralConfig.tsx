@@ -1,24 +1,26 @@
 /*
  *
- *   Licensed to the Apache Software Foundation (ASF) under one or more
- *   contributor license agreements.  See the NOTICE file distributed with
- *   this work for additional information regarding copyright ownership.
- *   The ASF licenses this file to You under the Apache License, Version 2.0
- *   (the "License"); you may not use this file except in compliance with
- *   the License.  You may obtain a copy of the License at
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  *
  */
 
 import { EditBtn } from '@/components/CallBackButton/EditBtn';
 import { BackIcon } from '@/components/Icons/CustomIcons';
+import { HasAuthority } from '@/hooks/useAccess';
+import { ButtonFrontendType } from '@/pages/SettingCenter/GlobalSetting/SettingOverView/constants';
 import { SWITCH_OPTIONS } from '@/services/constants';
 import { BaseConfigProperties } from '@/types/SettingCenter/data';
 import { l } from '@/utils/intl';
@@ -28,6 +30,7 @@ import { ProListMetas, ProListProps } from '@ant-design/pro-list';
 import { ActionType } from '@ant-design/pro-table';
 import { Descriptions, Input, Radio, RadioChangeEvent, Space, Switch } from 'antd';
 import React, { useRef } from 'react';
+import MoreInfo from '@/components/Typography/MoreInfo';
 
 type GeneralConfigProps = {
   data: BaseConfigProperties[];
@@ -35,11 +38,12 @@ type GeneralConfigProps = {
   onSave: (data: BaseConfigProperties) => void;
   loading: boolean;
   toolBarRender?: any;
-  selectChanges?: Record<string, (value: RadioChangeEvent) => void>;
+  selectChanges?: (e: RadioChangeEvent) => void;
+  auth: string;
 };
 
 const GeneralConfig: React.FC<GeneralConfigProps> = (props) => {
-  const { data, tag, onSave: handleSubmit, loading, toolBarRender, selectChanges } = props;
+  const { data, tag, auth, onSave: handleSubmit, loading, toolBarRender, selectChanges } = props;
 
   const actionRef = useRef<ActionType>();
 
@@ -54,11 +58,13 @@ const GeneralConfig: React.FC<GeneralConfigProps> = (props) => {
    * @param entity entity
    */
   const renderActions = (action: any, entity: BaseConfigProperties) => {
-    return entity.frontType === 'boolean' || entity.frontType === 'option'
+    return entity.frontType === ButtonFrontendType.BOOLEAN ||
+      entity.frontType === ButtonFrontendType.OPTION
       ? []
       : [
           <EditBtn
             key='edit'
+            disabled={!HasAuthority(auth)}
             onClick={() => {
               action.startEditable(entity.key);
             }}
@@ -82,29 +88,29 @@ const GeneralConfig: React.FC<GeneralConfigProps> = (props) => {
   };
 
   const renderValuesOfForm = (entity: BaseConfigProperties) => {
-    if (entity.frontType === 'boolean') {
+    if (entity.frontType === ButtonFrontendType.BOOLEAN) {
       return (
         <Switch
           {...SWITCH_OPTIONS()}
           style={{ width: '4vw' }}
+          disabled={!HasAuthority(auth)}
           checked={entity.value}
           onChange={(checked) => handleSubmit({ ...entity, value: checked })}
         />
       );
-    } else if (entity.frontType === 'option') {
-      // @ts-ignore
+    } else if (entity.frontType === ButtonFrontendType.OPTION) {
       return (
         <Radio.Group
-          onChange={selectChanges ? selectChanges[entity.key] : undefined}
-          defaultValue={entity.value.toLowerCase()}
+          onChange={selectChanges}
+          value={entity.value.toLowerCase()}
+          disabled={!HasAuthority(auth)}
+          name={entity.key}
         >
-          {entity.example.map((item: any) => {
-            return (
-              <Radio.Button key={item} value={item.toLowerCase()}>
-                {item}
-              </Radio.Button>
-            );
-          })}
+          {entity.example.map((item: any) => (
+            <Radio.Button key={item} value={item.toLowerCase()}>
+              {item}
+            </Radio.Button>
+          ))}
         </Radio.Group>
       );
     } else {
@@ -123,7 +129,9 @@ const GeneralConfig: React.FC<GeneralConfigProps> = (props) => {
     },
     description: {
       editable: false,
-      render: (dom: any, entity: BaseConfigProperties) => <>{entity.note}</>
+      render: (dom: any, entity: BaseConfigProperties) => (
+        <MoreInfo maxRows={1}>{entity.note}</MoreInfo>
+      )
     },
     content: {
       dataIndex: 'value',
@@ -152,7 +160,9 @@ const GeneralConfig: React.FC<GeneralConfigProps> = (props) => {
       saveText: <SaveTwoTone title={l('button.save')} />,
       cancelText: <BackIcon title={l('button.back')} />,
       actionRender: (row, config, dom) =>
-        row.frontType === 'boolean' || row.frontType === 'option' ? [] : [dom.save, dom.cancel],
+        row.frontType === ButtonFrontendType.BOOLEAN || row.frontType === ButtonFrontendType.OPTION
+          ? []
+          : [dom.save, dom.cancel],
       onSave: async (key, record) => handleSave(record)
     }
   };

@@ -19,10 +19,12 @@
 
 package org.dinky.data.dto;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
 
 /**
  * AbstractStatementDTO
@@ -30,6 +32,7 @@ import io.swagger.annotations.ApiModelProperty;
  * @since 2021/12/29
  */
 @ApiModel(value = "AbstractStatementDTO", description = "Abstract Statement Data Transfer Object")
+@Data
 public class AbstractStatementDTO {
 
     @ApiModelProperty(value = "Statement", dataType = "String", example = "SELECT * FROM table", notes = "SQL语句")
@@ -46,37 +49,5 @@ public class AbstractStatementDTO {
             dataType = "Map<String, String>",
             example = "{\"key\": \"value\"}",
             notes = "变量集合")
-    private Map<String, String> variables;
-
-    public String getStatement() {
-        return statement;
-    }
-
-    public void setStatement(String statement) {
-        this.statement = statement;
-    }
-
-    public Integer getEnvId() {
-        return envId;
-    }
-
-    public void setEnvId(Integer envId) {
-        this.envId = envId;
-    }
-
-    public boolean isFragment() {
-        return fragment;
-    }
-
-    public void setFragment(boolean fragment) {
-        this.fragment = fragment;
-    }
-
-    public Map<String, String> getVariables() {
-        return variables;
-    }
-
-    public void setVariables(Map<String, String> variables) {
-        this.variables = variables;
-    }
+    private Map<String, String> variables = new HashMap<>();
 }

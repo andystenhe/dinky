@@ -39,13 +39,13 @@ import org.apache.http.util.EntityUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.CollectionUtils;
 
-import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.util.RandomUtil;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpUtil;
 
@@ -79,8 +79,17 @@ public class HttpUtils {
             CloseableHttpResponse response = httpClient.execute(httpPost);
 
             int statusCode = response.getStatusLine().getStatusCode();
-            if (statusCode != HttpStatus.SC_OK) {
-                logger.error("post data error, return http status code: {} ", statusCode);
+
+            if (statusCode == HttpStatus.SC_OK) {
+                logger.debug(
+                        "post data success, return http status code: {} , msg: {}",
+                        statusCode,
+                        response.getStatusLine().getReasonPhrase());
+            } else {
+                logger.warn(
+                        "post data error, return http status code: {}, msg: {} ",
+                        statusCode,
+                        response.getStatusLine().getReasonPhrase());
             }
             String resp;
             try {
@@ -98,6 +107,7 @@ public class HttpUtils {
 
     /**
      * build HttpPost
+     *
      * @param httpUrl
      * @param msg
      * @return
@@ -138,19 +148,24 @@ public class HttpUtils {
      * @param timeout
      * @param consumer
      */
-    public static void asyncRequest(
+    public static void request(
             List<String> addressList, String urlParams, int timeout, Consumer<HttpResponse> consumer) {
-        if (CollUtil.isEmpty(addressList)) {
+        if (CollectionUtils.isEmpty(addressList)) {
             return;
         }
-        int index = RandomUtil.randomInt(addressList.size());
-        String url = addressList.get(index);
-        try {
-            HttpUtil.createGet(url + urlParams).disableCache().timeout(timeout).then(consumer);
-        } catch (Exception e) {
-            logger.error("url-timeout :{} ", url);
-            addressList.remove(index);
-            asyncRequest(addressList, urlParams, timeout, consumer);
-        }
+
+        CompletableFuture.anyOf(addressList.stream()
+                        .map(url -> CompletableFuture.runAsync(() -> {
+                            try {
+                                HttpUtil.createGet(url + urlParams)
+                                        .disableCache()
+                                        .timeout(timeout)
+                                        .then(consumer);
+                            } catch (Exception e) {
+                                logger.error("url-timeout :{} ", url);
+                            }
+                        }))
+                        .toArray(CompletableFuture[]::new))
+                .join();
     }
 }

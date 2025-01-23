@@ -21,6 +21,7 @@ import { AssignBtn } from '@/components/CallBackButton/AssignBtn';
 import { CreateBtn } from '@/components/CallBackButton/CreateBtn';
 import { EditBtn } from '@/components/CallBackButton/EditBtn';
 import { PopconfirmDeleteBtn } from '@/components/CallBackButton/PopconfirmDeleteBtn';
+import { Authorized, HasAuthority } from '@/hooks/useAccess';
 import AssignMenu from '@/pages/AuthCenter/Role/components/AssignMenu';
 import RoleUserList from '@/pages/AuthCenter/Role/components/RoleUserList';
 import { queryList } from '@/services/api';
@@ -35,12 +36,14 @@ import { API_CONSTANTS } from '@/services/endpoints';
 import { UserBaseInfo } from '@/types/AuthCenter/data.d';
 import { InitRoleListState } from '@/types/AuthCenter/init.d';
 import { RoleListState } from '@/types/AuthCenter/state.d';
+import { PermissionConstants } from '@/types/Public/constants';
 import { getTenantByLocalStorage } from '@/utils/function';
 import { l } from '@/utils/intl';
 import ProTable, { ActionType, ProColumns } from '@ant-design/pro-table';
 import { Tag } from 'antd';
 import React, { Key, useRef, useState } from 'react';
 import RoleModalForm from '../RoleModalForm';
+import ScrollInfo from '@/components/Typography/ScrollInfo';
 
 const RoleProTable: React.FC = () => {
   /**
@@ -144,9 +147,13 @@ const RoleProTable: React.FC = () => {
     {
       title: l('role.roleCode'),
       dataIndex: 'roleCode',
-      render: (_, record: UserBaseInfo.Role) => (
-        <a onClick={() => handleClickViewUserList(record)}> {record.roleCode} </a>
-      )
+      render: (_, record: UserBaseInfo.Role) => {
+        return HasAuthority(PermissionConstants.AUTH_ROLE_VIEW_USER_LIST) ? (
+          <a onClick={() => handleClickViewUserList(record)}> {record.roleCode} </a>
+        ) : (
+          <span> {record.roleCode} </span>
+        );
+      }
     },
     {
       title: l('role.roleName'),
@@ -182,23 +189,33 @@ const RoleProTable: React.FC = () => {
     {
       title: l('global.table.operate'),
       valueType: 'option',
-      width: '10vh',
+      width: '10%',
+      fixed: 'right',
       render: (_: any, record: UserBaseInfo.Role) => [
-        <EditBtn key={`${record.id}_edit`} onClick={() => handleEditVisible(record)} />,
-        <>
-          {record.id !== 1 && (
-            <PopconfirmDeleteBtn
-              key={`${record.id}_delete`}
-              onClick={() => handleDeleteSubmit(record.id)}
-              description={l('role.deleteConfirm')}
-            />
-          )}
+        <Authorized key={`${record.id}_add_auth`} path={PermissionConstants.AUTH_ROLE_EDIT}>
+          <EditBtn key={`${record.id}_edit`} onClick={() => handleEditVisible(record)} />
+        </Authorized>,
+        <Authorized key={`${record.id}_delete_auth`} path={PermissionConstants.AUTH_ROLE_DELETE}>
+          <>
+            {record.id !== 1 && (
+              <PopconfirmDeleteBtn
+                key={`${record.id}_delete`}
+                onClick={() => handleDeleteSubmit(record.id)}
+                description={l('role.deleteConfirm')}
+              />
+            )}
+          </>
+        </Authorized>,
+        <Authorized
+          key={`${record.id}_assignMenu_auth`}
+          path={PermissionConstants.AUTH_ROLE_ASSIGN_MENU}
+        >
           <AssignBtn
             key={`${record.id}_ass`}
             onClick={() => handleAssignVisible(record)}
             title={l('role.assignMenu', '', { roleName: record.roleName })}
           />
-        </>
+        </Authorized>
       ]
     }
   ];
@@ -208,16 +225,21 @@ const RoleProTable: React.FC = () => {
    */
   return (
     <>
+      <ScrollInfo isScroll={false} alert={{ enabled: false, banner: true }}>
+        {l('role.roleManagement.tips')}
+      </ScrollInfo>
       <ProTable<UserBaseInfo.Role>
         {...PROTABLE_OPTIONS_PUBLIC}
         headerTitle={l('role.roleManagement')}
         actionRef={actionRef}
         loading={roleListState.loading}
         toolBarRender={() => [
-          <CreateBtn
-            key={'toolBarRender'}
-            onClick={() => setRoleListState((prevState) => ({ ...prevState, addedOpen: true }))}
-          />
+          <Authorized key={'roleadd'} path={PermissionConstants.AUTH_ROLE_ADD}>
+            <CreateBtn
+              key={'toolBarRender'}
+              onClick={() => setRoleListState((prevState) => ({ ...prevState, addedOpen: true }))}
+            />
+          </Authorized>
         ]}
         request={(params, sorter, filter: any) =>
           queryList(API_CONSTANTS.ROLE, { ...params, sorter, filter })

@@ -20,8 +20,10 @@
 package org.dinky.job;
 
 import org.dinky.data.result.IResult;
+import org.dinky.metadata.result.JdbcSelectResult;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -95,6 +97,9 @@ public class JobResult {
     @ApiModelProperty(value = "Result data of the job", dataType = "IResult", notes = "Result data of the job")
     private IResult result;
 
+    @ApiModelProperty(value = "Result data of the job", dataType = "IResult", notes = "Result data of the job")
+    private List<JdbcSelectResult> results;
+
     @ApiModelProperty(
             value = "Start time of job execution",
             dataType = "LocalDateTime",
@@ -109,6 +114,13 @@ public class JobResult {
             notes = "End time of job execution")
     private LocalDateTime endTime;
 
+    @ApiModelProperty(
+            value = "Flag indicating whether the job was pipeline",
+            dataType = "boolean",
+            example = "true",
+            notes = "Flag indicating whether the job was pipeline")
+    private boolean isPipeline;
+
     public JobResult() {}
 
     public JobResult(
@@ -122,19 +134,21 @@ public class JobResult {
             String error,
             IResult result,
             LocalDateTime startTime,
-            LocalDateTime endTime) {
+            LocalDateTime endTime,
+            boolean isPipeline) {
         this.id = id;
         this.jobInstanceId = jobInstanceId;
         this.jobConfig = jobConfig;
         this.jobManagerAddress = jobManagerAddress;
         this.status = status;
-        this.success = (status == (Job.JobStatus.SUCCESS)) ? true : false;
+        this.success = status == (Job.JobStatus.SUCCESS);
         this.statement = statement;
         this.jobId = jobId;
         this.error = error;
         this.result = result;
         this.startTime = startTime;
         this.endTime = endTime;
+        this.isPipeline = isPipeline;
     }
 
     public void setStartTimeNow() {

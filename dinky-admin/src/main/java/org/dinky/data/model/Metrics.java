@@ -35,8 +35,10 @@ import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /** @TableName dinky_metrics */
+@EqualsAndHashCode(callSuper = true)
 @TableName(value = "dinky_metrics")
 @Data
 @ApiModel(value = "Metrics", description = "Metrics Information")
@@ -51,6 +53,9 @@ public class Metrics extends Model<Metrics> {
 
     @ApiModelProperty(value = "Vertices", dataType = "String", notes = "Vertices information")
     private String vertices;
+
+    @ApiModelProperty(value = "Vertices Title", dataType = "String", notes = "Vertices information")
+    private String verticesTitle;
 
     @ApiModelProperty(value = "Metrics Data", dataType = "String", notes = "Metrics data")
     private String metrics;
@@ -90,4 +95,8 @@ public class Metrics extends Model<Metrics> {
 
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;
+
+    @ApiModelProperty(value = "Job ID", dataType = "String", notes = "ID of the associated job")
+    @TableField(exist = false)
+    private String jobId;
 }

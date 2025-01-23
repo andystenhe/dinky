@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.dinky.mapper.UserMapper">
 
-    <select id="selectForProTable" resultType="org.dinky.data.model.User">
+    <select id="selectForProTable" resultType="org.dinky.data.model.rbac.User">
         select
         a.*
         from
@@ -10,10 +10,13 @@
         <where>
             1=1
             <if test='param.username!=null and param.username!=""'>
-                and a.username like "%${param.username}%"
+                and a.username like concat('%',#{param.username},'%')
             </if>
             <if test='param.nickname!=null and param.nickname!=""'>
-                and a.nickname like "%${param.nickname}%"
+                and a.nickname like concat('%',#{param.nickname},'%')
+            </if>
+            <if test='param.worknum!=null and param.worknum!=""'>
+                and a.worknum like concat('%',#{param.worknum},'%')
             </if>
             <if test='param.createTime!=null and param.createTime!=""'>
                 and a.create_time <![CDATA[>=]]> str_to_date( #{param.createTime},'%Y-%m-%d %H:%i:%s')

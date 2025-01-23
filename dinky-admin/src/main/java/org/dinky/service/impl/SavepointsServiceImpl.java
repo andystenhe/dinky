@@ -19,7 +19,9 @@
 
 package org.dinky.service.impl;
 
+import org.dinky.data.dto.TaskDTO;
 import org.dinky.data.model.Savepoints;
+import org.dinky.gateway.enums.SavePointStrategy;
 import org.dinky.mapper.SavepointsMapper;
 import org.dinky.mybatis.service.impl.SuperServiceImpl;
 import org.dinky.service.SavepointsService;
@@ -28,7 +30,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
 /**
  * SavepointsServiceImpl
@@ -40,7 +42,7 @@ public class SavepointsServiceImpl extends SuperServiceImpl<SavepointsMapper, Sa
 
     @Override
     public List<Savepoints> listSavepointsByTaskId(Integer taskId) {
-        return list(new QueryWrapper<Savepoints>().eq("task_id", taskId));
+        return list(new LambdaQueryWrapper<>(Savepoints.class).eq(Savepoints::getTaskId, taskId));
     }
 
     @Override
@@ -51,5 +53,24 @@ public class SavepointsServiceImpl extends SuperServiceImpl<SavepointsMapper, Sa
     @Override
     public Savepoints getEarliestSavepointByTaskId(Integer taskId) {
         return baseMapper.getEarliestSavepointByTaskId(taskId);
+    }
+
+    @Override
+    public Savepoints getSavePointWithStrategy(TaskDTO task) {
+        SavePointStrategy savePointStrategy = SavePointStrategy.get(task.getSavePointStrategy());
+        switch (savePointStrategy) {
+            case LATEST:
+                return getLatestSavepointByTaskId(task.getId());
+            case EARLIEST:
+                return getEarliestSavepointByTaskId(task.getId());
+            case CUSTOM:
+                return new Savepoints() {
+                    {
+                        setPath(task.getSavePointPath());
+                    }
+                };
+            default:
+                return null;
+        }
     }
 }

@@ -1,23 +1,25 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 export default {
   'menu.welcome': 'Welcome',
-  'menu.home': 'Home',
+  'menu.home': 'Worker place',
   'menu.exception.403': '403',
   'menu.exception.404': '404',
   'menu.exception.500': '500',
@@ -31,9 +33,16 @@ export default {
   'menu.account.tenant': 'Tenant: {tenantCode}',
   'menu.account.center': 'Account Center',
   'menu.account.logout': 'Logout',
+  'menu.account.clearPageCache': 'Clear Page Cache',
   'menu.account.changePassword': 'Change Password',
   'menu.account.checkTenant': 'Switch Tenant',
   'menu.account.checkTenantConfirm': 'Are you sure to switch  tenant [ {tenantCode} ] ?',
+  'menu.account.closeGlobalMessage': 'Close developer mode',
+  'menu.account.openGlobalMessage': 'Turn on developer mode',
+  'menu.account.closeGlobalMessageTip':
+    'You have turned off the developer mode and will not receive all exception information returned by the background. You can only receive warning information.',
+  'menu.account.openGlobalMessageTip':
+    'Developer mode is turned on. You can receive all exception/warning information returned by the background. If you do not want to receive the exception stack, please turn off this function.',
 
   'menu.datastudio': 'Data Studio',
 
@@ -48,15 +57,18 @@ export default {
   'menu.registration.cluster.cluster-instance': 'Flink Instance',
   'menu.registration.cluster.cluster-config': 'Cluster Config',
   'menu.registration.jar': 'Jar',
-  'menu.registration.database': 'Data Source',
+  'menu.registration.datasource': 'Data Source',
+  'menu.registration.datasource.list': 'Data Source List',
+  'menu.registration.datasource.detail': 'Data Source Detail',
   'menu.registration.alert': 'Alarm',
   'menu.registration.alert.instance': 'Alert Instance',
   'menu.registration.alert.group': 'Alert Group',
   'menu.registration.alert.template': 'Alert Template',
+  'menu.registration.alert.rule': 'Alert Rules',
   'menu.registration.document': 'Document',
   'menu.registration.fragment': 'Global Variable',
-  'menu.registration.gitprojects': 'Git Project(Beta)',
-  'menu.registration.udf': 'UDF Template',
+  'menu.registration.gitproject': 'Git Project(Beta)',
+  'menu.registration.udf': 'UDF',
   'menu.registration.resource': 'Resource',
   'menu.auth': 'Auth Center',
   'menu.auth.user': 'User',
@@ -66,33 +78,47 @@ export default {
   'menu.auth.namespace': 'NameSpace',
   'menu.auth.tenant': 'Tenant',
   'menu.auth.token': 'Token',
+  'menu.auth.approval': 'Approval',
   'menu.settings': 'Setting Center',
   'menu.settings.globalsetting': 'Global Settings',
   'menu.settings.systemlog': 'System Log',
+  'menu.settings.classloaderjars': 'ClassLoader Jars',
   'menu.settings.process': 'Process List',
   'menu.settings.services': 'Servers List',
-  'menu.settings.alertrulelist': 'Alert Rules',
   'menu.metrics': 'Metrics',
+  'menu.dashboard': 'Dashboard',
+  'menu.dashboard.list': 'Dashboard',
+  'menu.dashboard.chart': 'Dashboard-Chart',
   'menu.about': 'About',
   'menu.version': 'Version: {version}',
 
   'menu.datastudio.project': 'Project',
-  'menu.datastudio.structure': 'Structure',
-  'menu.datastudio.metadata': 'Metadata',
+  'menu.datastudio.catalog': 'Catalog',
+  'menu.datastudio.datasource': 'Data Source',
   'menu.datastudio.console': 'Console',
   'menu.datastudio.jobConfig': 'Job Config',
-  'menu.datastudio.executeConfig': 'Execute Config',
+  'menu.datastudio.previewConfig': 'PreView Config',
   'menu.datastudio.savePoint': 'Save Point',
   'menu.datastudio.historyVision': 'History Vision',
   'menu.datastudio.jobInfo': 'Job Info',
+  'menu.datastudio.quickStart': 'Quick Start',
+  'menu.datastudio.flinkSqlClient': 'Flink SQL Client',
 
   'menu.datastudio.tool': 'Tool',
   'menu.datastudio.result': 'Result',
   'menu.datastudio.bi': 'BI',
   'menu.datastudio.lineage': 'Lineage',
   'menu.datastudio.process': 'Process',
-  'menu.datastudio.history': 'History',
+  'menu.datastudio.history': 'Execution History',
   'menu.datastudio.table-data': 'Table Data',
+  'menu.datastudio.service': 'Service',
 
-  'menu.datastudio.tool.text-comparison': 'Text Comparison'
+  'menu.datastudio.tool.text-comparison': 'Text Comparison',
+  'menu.datastudio.tool.jsonToSql': 'JSON TO Flink-SQL',
+  'menu.datastudio.task.baseConfig': 'Basic Configuration',
+  'menu.datastudio.task.previewConfig': 'Preview Configuration',
+
+  'menu.approval': 'Approval Center',
+  'menu.approval.taskApproval': 'Task Approval',
+  'menu.approval.submitApproval': 'Submit Approval'
 };

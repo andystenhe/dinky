@@ -19,7 +19,7 @@
 
 package org.dinky.controller;
 
-import org.dinky.data.annotation.Log;
+import org.dinky.data.annotations.Log;
 import org.dinky.data.dto.TaskVersionHistoryDTO;
 import org.dinky.data.enums.BusinessType;
 import org.dinky.data.model.TaskVersion;
@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.hutool.core.bean.BeanUtil;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
@@ -52,6 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @Api(tags = "Task Version Controller")
 @RequestMapping("/api/task/version")
+@SaCheckLogin
 @RequiredArgsConstructor
 public class TaskVersionController {
 

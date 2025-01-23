@@ -19,11 +19,13 @@
 
 package org.dinky.gateway.model;
 
+import org.dinky.data.enums.GatewayType;
 import org.dinky.gateway.config.AppConfig;
 import org.dinky.gateway.config.ClusterConfig;
 import org.dinky.gateway.config.FlinkConfig;
 import org.dinky.gateway.config.K8sConfig;
-import org.dinky.gateway.enums.GatewayType;
+
+import java.util.Optional;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -59,11 +61,16 @@ public class FlinkClusterConfig {
             value = "Application Configuration",
             dataType = "AppConfig",
             notes = "Configuration settings for the application")
-    private AppConfig appConfig;
+    private AppConfig appConfig = new AppConfig();
 
     @ApiModelProperty(
             value = "Kubernetes Configuration",
             dataType = "K8sConfig",
             notes = "Configuration settings for Kubernetes (if applicable)")
     private K8sConfig kubernetesConfig;
+
+    public static FlinkClusterConfig create(String type, FlinkClusterConfig flinkClusterConfig) {
+        Optional.ofNullable(flinkClusterConfig).ifPresent(config -> config.setType(GatewayType.get(type)));
+        return flinkClusterConfig;
+    }
 }

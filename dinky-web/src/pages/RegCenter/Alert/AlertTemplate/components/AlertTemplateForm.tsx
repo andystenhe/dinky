@@ -18,7 +18,6 @@
  */
 
 import CodeEdit from '@/components/CustomEditor/CodeEdit';
-import { buildFormData, getFormData } from '@/pages/RegCenter/Alert/AlertGroup/function';
 import { MODAL_FORM_STYLE } from '@/services/constants';
 import { Alert } from '@/types/RegCenter/data';
 import { l } from '@/utils/intl';
@@ -56,7 +55,6 @@ const AlertTemplateForm: React.FC<AlertTemplateFormProps> = (props) => {
    * state
    */
   const [form] = Form.useForm();
-  const [formVals, setFormVals] = useState<Partial<Alert.AlertTemplate>>({ ...values });
   const [codeValue, setCodeValue] = useState<string>(values.templateContent || '');
 
   /**
@@ -64,8 +62,7 @@ const AlertTemplateForm: React.FC<AlertTemplateFormProps> = (props) => {
    */
   const submitForm = async () => {
     const fieldsValue = await form.validateFields();
-    setFormVals(buildFormData(formVals, fieldsValue));
-    handleSubmit(buildFormData(formVals, fieldsValue));
+    handleSubmit({ ...values, ...fieldsValue });
   };
 
   /**
@@ -96,7 +93,7 @@ const AlertTemplateForm: React.FC<AlertTemplateFormProps> = (props) => {
           <CodeEdit
             {...CodeEditProps}
             code={codeValue}
-            onChange={(value) => setCodeValue(value ?? '')}
+            onChange={(value: string) => setCodeValue(value ?? '')}
           />
         </ProForm.Item>
       </>
@@ -108,10 +105,16 @@ const AlertTemplateForm: React.FC<AlertTemplateFormProps> = (props) => {
    */
   const renderFooter = () => {
     return [
-      <Button key={'GroupCancel'} onClick={() => handleModalVisible(false)}>
+      <Button key={'AlertTemplateCancel'} onClick={() => handleModalVisible(false)}>
         {l('button.cancel')}
       </Button>,
-      <Button key={'GroupFinish'} type='primary' onClick={() => submitForm()}>
+      <Button
+        key={'AlertTemplateFinish'}
+        type='primary'
+        htmlType={'submit'}
+        autoFocus
+        onClick={() => submitForm()}
+      >
         {l('button.finish')}
       </Button>
     ];
@@ -122,14 +125,19 @@ const AlertTemplateForm: React.FC<AlertTemplateFormProps> = (props) => {
    */
   return (
     <ModalForm<Alert.AlertTemplate>
-      title={formVals.id ? l('rc.alert.template.modify') : l('rc.alert.template.create')}
+      title={values.id ? l('rc.alert.template.modify') : l('rc.alert.template.create')}
       open={modalVisible}
+      initialValues={values}
+      form={form}
+      modalProps={{
+        onCancel: () => handleModalVisible(false),
+        destroyOnClose: true,
+        maskClosable: false
+      }}
       {...MODAL_FORM_STYLE}
       submitter={{ render: () => [...renderFooter()] }}
     >
-      <ProForm form={form} initialValues={getFormData(formVals)} submitter={false}>
-        {renderAlertTemplateForm()}
-      </ProForm>
+      {renderAlertTemplateForm()}
     </ModalForm>
   );
 };

@@ -20,11 +20,14 @@
 package org.dinky.gateway;
 
 import org.dinky.assertion.Asserts;
+import org.dinky.context.FlinkUdfPathContextHolder;
+import org.dinky.data.enums.GatewayType;
 import org.dinky.data.enums.JobStatus;
+import org.dinky.data.model.CustomConfig;
 import org.dinky.gateway.config.GatewayConfig;
 import org.dinky.gateway.enums.ActionType;
-import org.dinky.gateway.enums.GatewayType;
 import org.dinky.gateway.exception.GatewayException;
+import org.dinky.gateway.exception.NotSupportGetStatusException;
 import org.dinky.gateway.model.JobInfo;
 import org.dinky.gateway.result.GatewayResult;
 import org.dinky.gateway.result.SavePointResult;
@@ -36,6 +39,7 @@ import org.apache.flink.client.deployment.ClusterDescriptor;
 import org.apache.flink.client.deployment.ClusterSpecification;
 import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.configuration.CheckpointingOptions;
+import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.JobManagerOptions;
 import org.apache.flink.configuration.TaskManagerOptions;
@@ -47,11 +51,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import cn.hutool.core.text.StrFormatter;
 
 /**
  * AbstractGateway
@@ -90,10 +97,29 @@ public abstract class AbstractGateway implements Gateway {
         }
     }
 
+    protected void addConfigParas(List<CustomConfig> flinkConfigList) {
+        if (Asserts.isNotNullCollection(flinkConfigList)) {
+            flinkConfigList.stream()
+                    .filter(customConfig -> Asserts.isAllNotNullString(customConfig.getName(), customConfig.getValue()))
+                    .forEach(customConfig ->
+                            this.configuration.setString(customConfig.getName(), customConfig.getValue()));
+        }
+    }
+
+    protected <T> void addConfigParas(ConfigOption<T> key, T value) {
+        if (Asserts.isNotNull(key) && Asserts.isNotNull(value)) {
+            this.configuration.set(key, value);
+        } else {
+            logger.warn("Gateway config key or value is null, key: {}, value: {}", key, value);
+        }
+    }
+
+    @Override
     public SavePointResult savepointCluster() {
         return savepointCluster(null);
     }
 
+    @Override
     public SavePointResult savepointJob() {
         return savepointJob(null);
     }
@@ -160,7 +186,7 @@ public abstract class AbstractGateway implements Gateway {
 
     @Override
     public JobStatus getJobStatusById(String id) {
-        return JobStatus.UNKNOWN;
+        throw new NotSupportGetStatusException(StrFormatter.format("{} is not support get status.", getType()));
     }
 
     @Override
@@ -169,23 +195,23 @@ public abstract class AbstractGateway implements Gateway {
     }
 
     @Override
-    public GatewayResult submitJar() {
+    public GatewayResult submitJar(FlinkUdfPathContextHolder udfPathContextHolder) {
         throw new GatewayException("Couldn't deploy Flink Cluster with User Application Jar.");
     }
 
-    protected void resetCheckpointInApplicationMode() {
-        String uuid = UUID.randomUUID().toString().replace("-", "");
-        if (configuration.contains(CheckpointingOptions.CHECKPOINTS_DIRECTORY)) {
-            configuration.set(
-                    CheckpointingOptions.CHECKPOINTS_DIRECTORY,
-                    configuration.getString(CheckpointingOptions.CHECKPOINTS_DIRECTORY) + "/" + uuid);
-        }
+    protected void resetCheckpointInApplicationMode(String jobName) {
+        String uuid = UUID.randomUUID().toString();
+        String checkpointsDirectory = configuration.get(CheckpointingOptions.CHECKPOINTS_DIRECTORY);
+        String savepointDirectory = configuration.get(CheckpointingOptions.SAVEPOINT_DIRECTORY);
 
-        if (configuration.contains(CheckpointingOptions.SAVEPOINT_DIRECTORY)) {
-            configuration.set(
-                    CheckpointingOptions.SAVEPOINT_DIRECTORY,
-                    configuration.getString(CheckpointingOptions.SAVEPOINT_DIRECTORY) + "/" + uuid);
-        }
+        Optional.ofNullable(checkpointsDirectory)
+                .ifPresent(dir -> configuration.set(
+                        CheckpointingOptions.CHECKPOINTS_DIRECTORY,
+                        StrFormatter.format("{}/{}/{}", dir, jobName, uuid)));
+
+        Optional.ofNullable(savepointDirectory)
+                .ifPresent(dir -> configuration.set(
+                        CheckpointingOptions.SAVEPOINT_DIRECTORY, StrFormatter.format("{}/{}/{}", dir, jobName, uuid)));
     }
 
     @Override
@@ -194,7 +220,7 @@ public abstract class AbstractGateway implements Gateway {
     }
 
     @Override
-    public GatewayResult deployCluster() {
+    public GatewayResult deployCluster(FlinkUdfPathContextHolder udfPathContextHolder) {
         logger.error("Could not deploy the Flink cluster");
         return null;
     }
@@ -221,5 +247,10 @@ public abstract class AbstractGateway implements Gateway {
     @Override
     public boolean onJobFinishCallback(String status) {
         return true;
+    }
+
+    @Override
+    public String getLatestJobManageHost(String appId, String oldJobManagerHost) {
+        throw new NotSupportGetStatusException("Does not support obtaining the latest JobManager host address");
     }
 }

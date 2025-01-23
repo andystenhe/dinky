@@ -20,12 +20,13 @@
 package org.dinky.controller;
 
 import org.dinky.assertion.Asserts;
-import org.dinky.data.annotation.Log;
+import org.dinky.data.annotations.Log;
+import org.dinky.data.constant.PermissionConstants;
+import org.dinky.data.dto.AssignRoleDTO;
 import org.dinky.data.dto.ModifyPasswordDTO;
 import org.dinky.data.enums.BusinessType;
 import org.dinky.data.enums.Status;
-import org.dinky.data.model.User;
-import org.dinky.data.params.AssignRoleParams;
+import org.dinky.data.model.rbac.User;
 import org.dinky.data.result.ProTableResult;
 import org.dinky.data.result.Result;
 import org.dinky.data.vo.UserVo;
@@ -44,6 +45,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import cn.hutool.core.lang.Dict;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
@@ -61,6 +65,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @Api(tags = "User Controller")
 @RequestMapping("/api/user")
+@SaCheckLogin
 @RequiredArgsConstructor
 public class UserController {
 
@@ -82,6 +87,9 @@ public class UserController {
             dataType = "User",
             paramType = "body",
             dataTypeClass = User.class)
+    @SaCheckPermission(
+            value = {PermissionConstants.AUTH_USER_ADD, PermissionConstants.AUTH_USER_EDIT},
+            mode = SaMode.OR)
     public Result<Void> saveOrUpdateUser(@RequestBody User user) {
         if (Asserts.isNull(user.getId())) {
             return userService.registerUser(user);
@@ -107,6 +115,7 @@ public class UserController {
             dataType = "Integer",
             paramType = "path",
             dataTypeClass = Integer.class)
+    @SaCheckPermission(PermissionConstants.AUTH_USER_EDIT)
     public Result<Void> modifyUserStatus(@RequestParam("id") Integer id) {
         if (userService.checkSuperAdmin(id)) {
             return Result.failed(Status.USER_SUPERADMIN_CANNOT_DISABLE);
@@ -154,6 +163,7 @@ public class UserController {
             dataType = "Integer",
             paramType = "path",
             dataTypeClass = Integer.class)
+    @SaCheckPermission(PermissionConstants.AUTH_USER_DELETE)
     public Result<Void> deleteUserById(@RequestParam("id") Integer id) {
         if (userService.removeUser(id)) {
             return Result.succeed(Status.DELETE_SUCCESS);
@@ -178,6 +188,7 @@ public class UserController {
             dataType = "ModifyPasswordDTO",
             paramType = "body",
             dataTypeClass = ModifyPasswordDTO.class)
+    @SaCheckPermission(PermissionConstants.AUTH_USER_CHANGE_PASSWORD)
     public Result<Void> modifyPassword(@RequestBody ModifyPasswordDTO modifyPasswordDTO) {
         return userService.modifyPassword(modifyPasswordDTO);
     }
@@ -185,21 +196,22 @@ public class UserController {
     /**
      * give user assign role
      *
-     * @param assignRoleParams {@link AssignRoleParams}
+     * @param assignRoleDTO {@link AssignRoleDTO}
      * @return {@link Result} with {@link Void}
      */
     @PostMapping(value = "/assignRole")
     @ApiOperation("Assign Role")
     @Log(title = "Assign Role", businessType = BusinessType.UPDATE)
     @ApiImplicitParam(
-            name = "assignRoleParams",
-            value = "assignRoleParams",
+            name = "assignRoleDTO",
+            value = "assignRoleDTO",
             required = true,
-            dataType = "AssignRoleParams",
+            dataType = "AssignRoleDTO",
             paramType = "body",
-            dataTypeClass = AssignRoleParams.class)
-    public Result<Void> assignRole(@RequestBody AssignRoleParams assignRoleParams) {
-        return userService.assignRole(assignRoleParams);
+            dataTypeClass = AssignRoleDTO.class)
+    @SaCheckPermission(PermissionConstants.AUTH_USER_ASSIGN_ROLE)
+    public Result<Void> assignRole(@RequestBody AssignRoleDTO assignRoleDTO) {
+        return userService.assignRole(assignRoleDTO);
     }
 
     /**
@@ -250,6 +262,7 @@ public class UserController {
                 paramType = "path",
                 dataTypeClass = Boolean.class)
     })
+    @SaCheckPermission(PermissionConstants.AUTH_TENANT_SET_USER_TO_TENANT_ADMIN)
     public Result<Void> modifyUserToTenantAdmin(
             @RequestParam Integer userId, @RequestParam Integer tenantId, @RequestParam Boolean tenantAdminFlag) {
         return userService.modifyUserToTenantAdmin(userId, tenantId, tenantAdminFlag);
@@ -265,6 +278,7 @@ public class UserController {
             dataType = "Integer",
             paramType = "path",
             dataTypeClass = Integer.class)
+    @SaCheckPermission(PermissionConstants.AUTH_USER_RECOVERY)
     public Result<Void> recoveryUser(@RequestParam("id") Integer userId) {
         return userService.recoveryUser(userId);
     }
@@ -279,6 +293,7 @@ public class UserController {
             dataType = "Integer",
             paramType = "path",
             dataTypeClass = Integer.class)
+    @SaCheckPermission(PermissionConstants.AUTH_USER_RESET_PASSWORD)
     public Result<UserVo> resetPassword(@RequestParam("id") Integer userId) {
         return userService.resetPassword(userId);
     }

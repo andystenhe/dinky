@@ -20,27 +20,31 @@
 package org.dinky.service.impl;
 
 import org.dinky.assertion.Asserts;
+import org.dinky.context.RowLevelPermissionsContext;
 import org.dinky.context.TenantContextHolder;
 import org.dinky.context.UserInfoContextHolder;
+import org.dinky.data.dto.AssignRoleDTO;
+import org.dinky.data.dto.AssignUserToTenantDTO;
 import org.dinky.data.dto.LoginDTO;
 import org.dinky.data.dto.ModifyPasswordDTO;
 import org.dinky.data.dto.UserDTO;
 import org.dinky.data.enums.Status;
 import org.dinky.data.enums.UserType;
 import org.dinky.data.exception.AuthException;
-import org.dinky.data.model.Menu;
-import org.dinky.data.model.Role;
-import org.dinky.data.model.RoleMenu;
-import org.dinky.data.model.RowPermissions;
+import org.dinky.data.exception.BusException;
+import org.dinky.data.model.SysToken;
 import org.dinky.data.model.SystemConfiguration;
-import org.dinky.data.model.Tenant;
-import org.dinky.data.model.User;
-import org.dinky.data.model.UserRole;
-import org.dinky.data.model.UserTenant;
-import org.dinky.data.params.AssignRoleParams;
-import org.dinky.data.params.AssignUserToTenantParams;
+import org.dinky.data.model.rbac.Menu;
+import org.dinky.data.model.rbac.Role;
+import org.dinky.data.model.rbac.RoleMenu;
+import org.dinky.data.model.rbac.RowPermissions;
+import org.dinky.data.model.rbac.Tenant;
+import org.dinky.data.model.rbac.User;
+import org.dinky.data.model.rbac.UserRole;
+import org.dinky.data.model.rbac.UserTenant;
 import org.dinky.data.result.Result;
 import org.dinky.data.vo.UserVo;
+import org.dinky.mapper.TokenMapper;
 import org.dinky.mapper.UserMapper;
 import org.dinky.mybatis.service.impl.SuperServiceImpl;
 import org.dinky.service.MenuService;
@@ -55,18 +59,23 @@ import org.dinky.service.UserTenantService;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
 import cn.dev33.satoken.secure.SaSecureUtil;
 import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.core.date.DateTime;
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.RandomUtil;
-import cn.hutool.core.util.StrUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * UserServiceImpl
@@ -75,6 +84,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implements UserService {
 
     private static final String DEFAULT_PASSWORD = "123456";
@@ -96,6 +106,10 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
     private final RoleMenuService roleMenuService;
 
     private final MenuService menuService;
+    private final TokenService tokenService;
+    private final TokenMapper tokenMapper;
+
+    private final ReentrantLock lock = new ReentrantLock();
 
     @Override
     public Result<Void> registerUser(User user) {
@@ -129,7 +143,7 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
     public Result<Void> modifyPassword(ModifyPasswordDTO modifyPasswordDTO) {
         User user = getById(modifyPasswordDTO.getId());
         if (Asserts.isNull(user)) {
-            return Result.failed(Status.USER_NOT_EXIST);
+            return Result.authorizeFailed(Status.USER_NOT_EXIST, modifyPasswordDTO.getUsername());
         }
         if (!Asserts.isEquals(SaSecureUtil.md5(modifyPasswordDTO.getPassword()), user.getPassword())) {
             return Result.failed(Status.USER_OLD_PASSWORD_INCORRECT);
@@ -144,6 +158,10 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
 
     @Override
     public Boolean removeUser(Integer id) {
+        User user = getById(id);
+        if (user.getSuperAdminFlag()) {
+            throw new BusException(Status.USER_SUPERADMIN_CANNOT_DELETE);
+        }
         return baseMapper.deleteById(id) > 0;
     }
 
@@ -154,7 +172,7 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
      *
      * @param loginDTO a user based on the provided login credentials.
      * @return a Result object containing the user information if the login is successful, or an
-     *     appropriate error status if the login fails.
+     * appropriate error status if the login fails.
      */
     @Override
     public Result<UserDTO> loginUser(LoginDTO loginDTO) {
@@ -164,29 +182,66 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
             user = loginDTO.isLdapLogin() ? ldapLogin(loginDTO) : localLogin(loginDTO);
         } catch (AuthException e) {
             // Handle authentication exceptions and return the corresponding error status
-            return Result.failed(e.getStatus() + e.getMessage());
+            return Result.authorizeFailed(e.getStatus());
         }
 
         // Check if the user is enabled
         if (!user.getEnabled()) {
             loginLogService.saveLoginLog(user, Status.USER_DISABLED_BY_ADMIN);
-            return Result.failed(Status.USER_DISABLED_BY_ADMIN);
+            return Result.authorizeFailed(Status.USER_DISABLED_BY_ADMIN);
         }
 
         UserDTO userInfo = refreshUserInfo(user);
         if (Asserts.isNullCollection(userInfo.getTenantList())) {
             loginLogService.saveLoginLog(user, Status.USER_NOT_BINDING_TENANT);
-            return Result.failed(Status.USER_NOT_BINDING_TENANT);
+            return Result.authorizeFailed(Status.USER_NOT_BINDING_TENANT);
         }
 
         // Perform login using StpUtil (Assuming it handles the session management)
-        StpUtil.login(user.getId(), loginDTO.isAutoLogin());
+        Integer userId = user.getId();
+        StpUtil.login(userId, loginDTO.isAutoLogin());
 
         // save login log record
         loginLogService.saveLoginLog(user, Status.LOGIN_SUCCESS);
 
+        upsertToken(userInfo);
+
         // Return the user information along with a success status
         return Result.succeed(userInfo, Status.LOGIN_SUCCESS);
+    }
+
+    private void upsertToken(UserDTO userInfo) {
+        Integer userId = userInfo.getUser().getId();
+        SysToken sysToken = new SysToken();
+        String tokenValue = StpUtil.getTokenValueByLoginId(userId);
+        sysToken.setTokenValue(tokenValue);
+        sysToken.setUserId(userId);
+        // todo 权限和租户暂未接入
+        sysToken.setRoleId(1);
+        sysToken.setTenantId(1);
+        sysToken.setExpireType(3);
+        DateTime date = DateUtil.date();
+        sysToken.setExpireStartTime(date);
+        sysToken.setExpireEndTime(DateUtil.offsetDay(date, 1));
+        sysToken.setCreator(userId);
+        sysToken.setUpdater(userId);
+        sysToken.setSource(SysToken.Source.LOGIN);
+
+        try {
+            lock.lock();
+            SysToken lastSysToken =
+                    tokenMapper.selectOne(new LambdaQueryWrapper<SysToken>().eq(SysToken::getTokenValue, tokenValue));
+            if (Asserts.isNull(lastSysToken)) {
+                tokenMapper.insert(sysToken);
+            } else {
+                sysToken.setId(lastSysToken.getId());
+                tokenMapper.updateById(sysToken);
+            }
+        } catch (Exception e) {
+            log.error("update token info failed", e);
+        } finally {
+            lock.unlock();
+        }
     }
 
     private User localLogin(LoginDTO loginDTO) throws AuthException {
@@ -194,7 +249,7 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
         User user = getUserByUsername(loginDTO.getUsername());
         if (Asserts.isNull(user)) {
             // User doesn't exist
-            throw new AuthException(Status.USER_NOT_EXIST);
+            throw new AuthException(Status.USER_NOT_EXIST, loginDTO.getUsername());
         }
 
         String userPassword = user.getPassword();
@@ -223,7 +278,6 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
             // User doesn't exist locally
             // Check if LDAP user autoload is enabled
             if (!SystemConfiguration.getInstances().getLdapAutoload().getValue()) {
-                loginLogService.saveLoginLog(userFromLocal, Status.USER_NAME_PASSWD_ERROR);
                 throw new AuthException(Status.LDAP_USER_AUTOLOAD_FORBAID);
             }
 
@@ -232,7 +286,6 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
                     SystemConfiguration.getInstances().getLdapDefaultTeant().getValue();
             Tenant tenant = tenantService.getTenantByTenantCode(defaultTeantCode);
             if (Asserts.isNull(tenant)) {
-                loginLogService.saveLoginLog(userFromLocal, Status.LDAP_DEFAULT_TENANT_NOFOUND);
                 throw new AuthException(Status.LDAP_DEFAULT_TENANT_NOFOUND);
             }
 
@@ -248,7 +301,7 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
             List<Integer> userIds = getUserIdsByTenantId(tenant.getId());
             User user = getUserByUsername(loginDTO.getUsername());
             userIds.add(user.getId());
-            tenantService.assignUserToTenant(new AssignUserToTenantParams(tenant.getId(), userIds));
+            tenantService.assignUserToTenant(new AssignUserToTenantDTO(tenant.getId(), userIds));
             return user;
         } else if (userFromLocal.getUserType() != UserType.LDAP.getCode()) {
             loginLogService.saveLoginLog(userFromLocal, Status.LDAP_LOGIN_FORBID);
@@ -273,13 +326,12 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Result<Void> assignRole(AssignRoleParams assignRoleParams) {
+    public Result<Void> assignRole(AssignRoleDTO assignRoleDTO) {
         List<UserRole> userRoleList = new ArrayList<>();
-        userRoleService.remove(
-                new LambdaQueryWrapper<UserRole>().eq(UserRole::getUserId, assignRoleParams.getUserId()));
-        for (Integer roleId : assignRoleParams.getRoleIds()) {
+        userRoleService.remove(new LambdaQueryWrapper<UserRole>().eq(UserRole::getUserId, assignRoleDTO.getUserId()));
+        for (Integer roleId : assignRoleDTO.getRoleIds()) {
             UserRole userRole = new UserRole();
-            userRole.setUserId(assignRoleParams.getUserId());
+            userRole.setUserId(assignRoleDTO.getUserId());
             userRole.setRoleId(roleId);
             userRoleList.add(userRole);
         }
@@ -311,13 +363,18 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
     }
 
     @Override
-    public Result<UserDTO> queryCurrentUserInfo() {
+    public Result<UserDTO> queryCurrentUserInfo(Integer tenantId) {
         UserDTO userInfo = UserInfoContextHolder.get(StpUtil.getLoginIdAsInt());
+        chooseTenant(tenantId);
 
         if (Asserts.isNotNull(userInfo)) {
             UserDTO userInfoDto = buildUserInfo(userInfo.getUser().getId());
             if (userInfoDto != null) {
-                userInfoDto.setCurrentTenant(userInfo.getCurrentTenant());
+                Tenant currentTenant = userInfo.getCurrentTenant();
+                if (Asserts.isNull(currentTenant)) {
+                    currentTenant = tenantService.getById(tenantId);
+                }
+                userInfoDto.setCurrentTenant(currentTenant);
             }
             UserInfoContextHolder.refresh(StpUtil.getLoginIdAsInt(), userInfoDto);
             return Result.succeed(userInfoDto);
@@ -353,7 +410,10 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
 
     @Override
     public List<Role> getCurrentRole() {
-        return roleService.getRoleByUserId(StpUtil.getLoginIdAsInt());
+        if (StpUtil.isLogin()) {
+            return roleService.getRoleByUserId(StpUtil.getLoginIdAsInt());
+        }
+        return new ArrayList<>();
     }
 
     @Override
@@ -364,6 +424,21 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
         }
         List<Integer> roleIds = currentRole.stream().map(Role::getId).collect(Collectors.toList());
         return roleSelectPermissionsService.listRoleSelectPermissionsByRoleIds(roleIds);
+    }
+
+    @Override
+    public void buildRowPermission() {
+        List<RowPermissions> currentRoleSelectPermissions = getCurrentRoleSelectPermissions();
+        if (Asserts.isNotNullCollection(currentRoleSelectPermissions)) {
+            ConcurrentHashMap<String, String> permission = new ConcurrentHashMap<>();
+            for (RowPermissions roleSelectPermissions : currentRoleSelectPermissions) {
+                if (Asserts.isAllNotNullString(
+                        roleSelectPermissions.getTableName(), roleSelectPermissions.getExpression())) {
+                    permission.put(roleSelectPermissions.getTableName(), roleSelectPermissions.getExpression());
+                }
+            }
+            RowLevelPermissionsContext.set(permission);
+        }
     }
 
     @Override
@@ -396,8 +471,14 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
                 userTenantService.list(new LambdaQueryWrapper<UserTenant>().eq(UserTenant::getTenantId, id));
         userTenants.forEach(userTenant -> {
             User user = getById(userTenant.getUserId());
-            user.setTenantAdminFlag(userTenant.getTenantAdminFlag());
-            userList.add(user);
+            if (!Asserts.isNull(user)) {
+                user.setTenantAdminFlag(userTenant.getTenantAdminFlag());
+                userList.add(user);
+            } else {
+                log.error(
+                        "Unable to obtain user information, the user may have been deleted, please contact the administrator to verify, userId:[{}]",
+                        userTenant.getUserId());
+            }
         });
         return userList;
     }
@@ -456,7 +537,7 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
      * @param userId
      * @return
      */
-    private UserDTO buildUserInfo(Integer userId) {
+    public UserDTO buildUserInfo(Integer userId) {
 
         User user = getById(userId);
         if (Asserts.isNull(user)) {
@@ -477,12 +558,17 @@ public class UserServiceImpl extends SuperServiceImpl<UserMapper, User> implemen
                 // query role menu
                 List<RoleMenu> roleMenus =
                         roleMenuService.list(new LambdaQueryWrapper<RoleMenu>().eq(RoleMenu::getRoleId, role.getId()));
-                roleMenus.forEach(roleMenu -> {
-                    Menu menu = menuService.getById(roleMenu.getMenuId());
-                    if (Asserts.isNotNull(menu) && !StrUtil.equals("M", menu.getType())) {
-                        menuList.add(menu);
-                    }
-                });
+                List<Integer> collect =
+                        roleMenus.stream().map(RoleMenu::getMenuId).collect(Collectors.toList());
+                if (CollectionUtils.isEmpty(collect)) {
+                    return;
+                }
+                List<Menu> list = menuService.list(new LambdaQueryWrapper<Menu>()
+                        .in(
+                                Menu::getId,
+                                roleMenus.stream().map(RoleMenu::getMenuId).collect(Collectors.toList()))
+                        .ne(Menu::getType, "M"));
+                menuList.addAll(list);
             }
         });
 

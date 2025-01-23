@@ -23,11 +23,12 @@ import org.dinky.assertion.Asserts;
 import org.dinky.data.model.Column;
 import org.dinky.data.model.QueryData;
 import org.dinky.data.model.Table;
+import org.dinky.metadata.config.AbstractJdbcConfig;
 import org.dinky.metadata.convert.ITypeConvert;
 import org.dinky.metadata.convert.PostgreSqlTypeConvert;
+import org.dinky.metadata.enums.DriverType;
 import org.dinky.metadata.query.IDBQuery;
 import org.dinky.metadata.query.PostgreSqlQuery;
-import org.dinky.utils.TextUtil;
 
 import java.util.HashMap;
 import java.util.List;
@@ -52,13 +53,13 @@ public class PostgreSqlDriver extends AbstractJdbcDriver {
     }
 
     @Override
-    public ITypeConvert getTypeConvert() {
+    public ITypeConvert<AbstractJdbcConfig> getTypeConvert() {
         return new PostgreSqlTypeConvert();
     }
 
     @Override
     public String getType() {
-        return "PostgreSql";
+        return DriverType.POSTGRESQL.getValue();
     }
 
     @Override
@@ -157,8 +158,8 @@ public class PostgreSqlDriver extends AbstractJdbcDriver {
 
         String where = queryData.getOption().getWhere();
         String order = queryData.getOption().getOrder();
-        String limitStart = queryData.getOption().getLimitStart();
-        String limitEnd = queryData.getOption().getLimitEnd();
+        int limitStart = queryData.getOption().getLimitStart();
+        int limitEnd = queryData.getOption().getLimitEnd();
 
         StringBuilder optionBuilder = new StringBuilder()
                 .append("select * from ")
@@ -171,13 +172,6 @@ public class PostgreSqlDriver extends AbstractJdbcDriver {
         }
         if (order != null && !order.equals("")) {
             optionBuilder.append(" order by ").append(order);
-        }
-
-        if (TextUtil.isEmpty(limitStart)) {
-            limitStart = "0";
-        }
-        if (TextUtil.isEmpty(limitEnd)) {
-            limitEnd = "100";
         }
         optionBuilder.append(" offset ").append(limitStart).append(" limit ").append(limitEnd);
 

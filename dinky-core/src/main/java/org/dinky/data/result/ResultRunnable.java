@@ -34,6 +34,8 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import com.google.common.collect.Streams;
 
@@ -49,41 +51,73 @@ public class ResultRunnable implements Runnable {
 
     private static final String nullColumn = "";
     private final TableResult tableResult;
+    private final String id;
     private final Integer maxRowNum;
     private final boolean isChangeLog;
     private final boolean isAutoCancel;
     private final String timeZone;
+    private BiConsumer<String, SelectResult> callback;
 
     public ResultRunnable(
-            TableResult tableResult, Integer maxRowNum, boolean isChangeLog, boolean isAutoCancel, String timeZone) {
+            TableResult tableResult,
+            String id,
+            Integer maxRowNum,
+            boolean isChangeLog,
+            boolean isAutoCancel,
+            String timeZone) {
         this.tableResult = tableResult;
+        this.id = id;
         this.maxRowNum = maxRowNum;
         this.isChangeLog = isChangeLog;
         this.isAutoCancel = isAutoCancel;
         this.timeZone = timeZone;
     }
 
+    public ResultRunnable registerCallback(BiConsumer<String, SelectResult> callback) {
+        this.callback = callback;
+        return this;
+    }
+
     @Override
     public void run() {
+        log.info("ResultRunnable start. Job id: {}", id);
         try {
             tableResult.getJobClient().ifPresent(jobClient -> {
-                String jobId = jobClient.getJobID().toHexString();
-                if (!ResultPool.containsKey(jobId)) {
-                    ResultPool.put(new SelectResult(jobId, new ArrayList<>(), new LinkedHashSet<>()));
+                if (!ResultPool.containsKey(id)) {
+                    ResultPool.put(new SelectResult(id, new ArrayList<>(), new LinkedHashSet<>()));
                 }
-
                 try {
                     if (isChangeLog) {
-                        catchChangLog(ResultPool.get(jobId));
+                        catchChangLog(ResultPool.get(id));
                     } else {
-                        catchData(ResultPool.get(jobId));
+                        catchData(ResultPool.get(id));
+                    }
+                    if (isAutoCancel) {
+                        cancelJob();
+                    }
+                    ResultPool.get(id).setDestroyed(Boolean.TRUE);
+                    if (Objects.nonNull(callback)) {
+                        callback.accept(id, ResultPool.get(id));
                     }
                 } catch (Exception e) {
                     log.error(String.format(e.toString()));
+                } finally {
+                    ResultPool.remove(id);
                 }
             });
         } catch (Exception e) {
             // Nothing to do
+        }
+    }
+
+    private void cancelJob() {
+        try {
+            tableResult.getJobClient().ifPresent(JobClient::cancel);
+            log.info("Auto cancel job. Job id: {}", id);
+        } catch (Exception e) {
+            // It is normal to encounter an exception
+            // when trying to close a batch task that is already closed.
+            log.warn("Auto cancel job failed. Job id: {}", id, e);
         }
     }
 
@@ -98,10 +132,7 @@ public class ResultRunnable implements Runnable {
             map.put(FlinkConstant.OP, row.getKind().shortString());
             rows.add(map);
         });
-
-        if (isAutoCancel) {
-            tableResult.getJobClient().ifPresent(JobClient::cancel);
-        }
+        log.info("Catch change log finish. Job id: {}", selectResult.getJobId());
     }
 
     private void catchData(SelectResult selectResult) {
@@ -117,6 +148,7 @@ public class ResultRunnable implements Runnable {
                 rows.add(map);
             }
         });
+        log.info("Catch data finish. Job id: {}", selectResult.getJobId());
     }
 
     private Map<String, Object> getFieldMap(List<String> columns, Row row) {

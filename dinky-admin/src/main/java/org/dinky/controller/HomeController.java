@@ -20,10 +20,10 @@
 package org.dinky.controller;
 
 import org.dinky.assertion.Asserts;
-import org.dinky.data.model.HomeResource;
-import org.dinky.data.model.JobModelOverview;
-import org.dinky.data.model.JobStatusOverView;
-import org.dinky.data.model.JobTypeOverView;
+import org.dinky.data.model.home.HomeResource;
+import org.dinky.data.model.home.JobModelOverview;
+import org.dinky.data.model.home.JobStatusOverView;
+import org.dinky.data.model.home.JobTypeOverView;
 import org.dinky.data.result.Result;
 import org.dinky.service.HomeService;
 
@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 @Api(tags = "Home Controller")
 @RequestMapping("/api/home")
 @RequiredArgsConstructor
+@SaCheckLogin
 public class HomeController {
 
     private final HomeService homeService;

@@ -19,7 +19,7 @@
 
 package org.dinky.gateway.result;
 
-import org.dinky.gateway.enums.GatewayType;
+import org.dinky.data.enums.GatewayType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -71,8 +71,9 @@ public class YarnResult extends AbstractGatewayResult {
     }
 
     @Override
-    public void setId(String id) {
+    public GatewayResult setId(String id) {
         this.appId = id;
+        return this;
     }
 
     public String getWebURL() {

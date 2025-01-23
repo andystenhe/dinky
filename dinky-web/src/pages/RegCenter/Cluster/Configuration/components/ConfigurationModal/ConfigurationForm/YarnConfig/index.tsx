@@ -1,36 +1,29 @@
 /*
  *
- *   Licensed to the Apache Software Foundation (ASF) under one or more
- *   contributor license agreements.  See the NOTICE file distributed with
- *   this work for additional information regarding copyright ownership.
- *   The ASF licenses this file to You under the Apache License, Version 2.0
- *   (the "License"); you may not use this file except in compliance with
- *   the License.  You may obtain a copy of the License at
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  *
  */
 
-import { StateType } from '@/pages/DataStudio/model';
+import FlinkOptionsSelect from '@/components/Flink/OptionsSelect';
 import { l } from '@/utils/intl';
-import { connect } from '@@/exports';
-import {
-  ProCard,
-  ProFormGroup,
-  ProFormList,
-  ProFormSelect,
-  ProFormText
-} from '@ant-design/pro-components';
+import { ProCard, ProFormGroup, ProFormList, ProFormText } from '@ant-design/pro-components';
 import { Col, Divider, Row, Space } from 'antd';
 import { DefaultOptionType } from 'antd/es/select';
 
-const YarnConfig = (props: { flinkConfigOptions: DefaultOptionType[] }) => {
+export const YarnConfig = (props: { flinkConfigOptions: DefaultOptionType[] }) => {
   const { flinkConfigOptions } = props;
   return (
     <>
@@ -39,7 +32,7 @@ const YarnConfig = (props: { flinkConfigOptions: DefaultOptionType[] }) => {
           <Divider>{l('rc.cc.hadoopConfig')}</Divider>
           <ProFormGroup>
             <ProFormText
-              name={['configJson', 'hadoopConfigPath']}
+              name={['config', 'clusterConfig', 'hadoopConfigPath']}
               label={l('rc.cc.hadoopConfigPath')}
               width='md'
               rules={[
@@ -54,7 +47,7 @@ const YarnConfig = (props: { flinkConfigOptions: DefaultOptionType[] }) => {
           </ProFormGroup>
           <Divider>{l('rc.cc.hadoop.defineConfig')}</Divider>
           <ProFormList
-            name={['configJson', 'hadoopConfigList']}
+            name={['config', 'clusterConfig', 'hadoopConfigList']}
             copyIconProps={false}
             deleteIconProps={{
               tooltipText: l('rc.cc.deleteConfig')
@@ -79,7 +72,7 @@ const YarnConfig = (props: { flinkConfigOptions: DefaultOptionType[] }) => {
           <Divider>{l('rc.cc.flinkConfig')}</Divider>
           <ProFormGroup>
             <ProFormText
-              name={['configJson', 'flinkLibPath']}
+              name={['config', 'clusterConfig', 'flinkLibPath']}
               label={l('rc.cc.libPath')}
               width='md'
               rules={[{ required: true, message: l('rc.cc.libPathPlaceholder') }]}
@@ -88,7 +81,7 @@ const YarnConfig = (props: { flinkConfigOptions: DefaultOptionType[] }) => {
             />
 
             <ProFormText
-              name={['configJson', 'flinkConfigPath']}
+              name={['config', 'clusterConfig', 'flinkConfigPath']}
               label={l('rc.cc.flinkConfigPath')}
               width='md'
               rules={[
@@ -104,7 +97,7 @@ const YarnConfig = (props: { flinkConfigOptions: DefaultOptionType[] }) => {
 
           <Divider>{l('rc.cc.flink.defineConfig')}</Divider>
           <ProFormList
-            name={['configJson', 'flinkConfigList']}
+            name={['config', 'flinkConfig', 'flinkConfigList']}
             copyIconProps={false}
             deleteIconProps={{
               tooltipText: l('rc.cc.deleteConfig')
@@ -116,7 +109,7 @@ const YarnConfig = (props: { flinkConfigOptions: DefaultOptionType[] }) => {
           >
             <ProFormGroup key='flinkGroup' style={{ display: 'flex', width: '100%' }}>
               <Space key={'config'} style={{ display: 'flex' }} align='baseline'>
-                <ProFormSelect
+                <FlinkOptionsSelect
                   name='name'
                   width={'md'}
                   mode={'single'}
@@ -134,7 +127,3 @@ const YarnConfig = (props: { flinkConfigOptions: DefaultOptionType[] }) => {
     </>
   );
 };
-
-export default connect(({ Studio }: { Studio: StateType }) => ({
-  flinkConfigOptions: Studio.flinkConfigOptions
-}))(YarnConfig);

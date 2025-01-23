@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiOperation;
@@ -50,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @Api(tags = "SavePoints Controller")
 @RequestMapping("/api/savepoints")
+@SaCheckLogin
 @RequiredArgsConstructor
 public class SavePointsController {
 
@@ -73,17 +75,16 @@ public class SavePointsController {
     public ProTableResult<Savepoints> listSavePoints(@RequestBody JsonNode para) {
         return savepointsService.selectForProTable(para);
     }
-
     /**
      * query savepoint list by task id
      *
-     * @param taskID {@link Integer}
+     * @param taskId {@link Integer}
      * @return {@link Result}<{@link List}<{@link Savepoints}>>
      */
     @GetMapping("/listSavepointsByTaskId")
     @ApiOperation("Query SavePoint List By TaskId")
-    @ApiImplicitParam(name = "taskID", value = "Task ID", dataType = "Integer", paramType = "query", required = true)
-    public Result<List<Savepoints>> listSavePointsByTaskId(@RequestParam Integer taskID) {
-        return Result.succeed(savepointsService.listSavepointsByTaskId(taskID));
+    @ApiImplicitParam(name = "taskId", value = "Task ID", dataType = "Integer", paramType = "query", required = true)
+    public Result<List<Savepoints>> listSavePointsByTaskId(@RequestParam Integer taskId) {
+        return Result.succeed(savepointsService.listSavepointsByTaskId(taskId));
     }
 }

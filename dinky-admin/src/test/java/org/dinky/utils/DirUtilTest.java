@@ -20,7 +20,7 @@
 package org.dinky.utils;
 
 import org.dinky.data.constant.DirConstant;
-import org.dinky.data.model.FileNode;
+import org.dinky.data.model.ext.FileNode;
 
 import java.util.List;
 
@@ -39,21 +39,21 @@ public class DirUtilTest {
     @Ignore
     @Test
     public void testListDirByPath() {
-        List<FileNode> dirList = DirUtil.listDirByPath(DirConstant.LOG_DIR_PATH);
+        List<FileNode> dirList = DirUtil.listDirByPath(DirConstant.getRootLogsPath());
         Assertions.assertThat(dirList).isNotNull();
     }
 
     @Ignore
     @Test
     public void testReadFile() {
-        String result = DirUtil.readFile(DirConstant.LOG_DIR_PATH + "/dinky.log");
+        String result = DirUtil.readFile(DirConstant.getRootLog());
         Assertions.assertThat(result).isNotNull();
     }
 
     @Ignore
     @Test
     public void testReadRootLog() {
-        String result = DirUtil.readFile(DirConstant.ROOT_LOG_PATH);
+        String result = DirUtil.readFile(DirConstant.getRootLog());
         Assertions.assertThat(result).isNotNull();
     }
 }

@@ -20,12 +20,13 @@
 package org.dinky.service.impl;
 
 import org.dinky.assertion.Asserts;
+import org.dinky.data.dto.RoleDTO;
 import org.dinky.data.enums.Status;
-import org.dinky.data.model.Role;
-import org.dinky.data.model.RowPermissions;
-import org.dinky.data.model.Tenant;
-import org.dinky.data.model.User;
-import org.dinky.data.model.UserRole;
+import org.dinky.data.model.rbac.Role;
+import org.dinky.data.model.rbac.RowPermissions;
+import org.dinky.data.model.rbac.Tenant;
+import org.dinky.data.model.rbac.User;
+import org.dinky.data.model.rbac.UserRole;
 import org.dinky.data.result.ProTableResult;
 import org.dinky.data.result.Result;
 import org.dinky.mapper.RoleMapper;
@@ -40,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -77,7 +79,9 @@ public class RoleServiceImpl extends SuperServiceImpl<RoleMapper, Role> implemen
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Result<Void> addedOrUpdateRole(Role role) {
+    public Result<Void> addedOrUpdateRole(RoleDTO roleDTO) {
+        Role role = roleDTO.toBean();
+
         if (Asserts.isNull(role.getId())) {
             Role roleCode =
                     roleService.getOne(new LambdaQueryWrapper<Role>().eq(Role::getRoleCode, role.getRoleCode()));
@@ -177,7 +181,12 @@ public class RoleServiceImpl extends SuperServiceImpl<RoleMapper, Role> implemen
         List<User> userList = new ArrayList<>();
 
         if (Asserts.isNotNull(userRoleList)) {
-            userRoleList.forEach(userRole -> userList.add(userService.getById(userRole.getUserId())));
+            userRoleList.forEach(userRole -> {
+                User user = userService.getById(userRole.getUserId());
+                if (Objects.nonNull(user)) {
+                    userList.add(user);
+                }
+            });
         }
         return userList;
     }

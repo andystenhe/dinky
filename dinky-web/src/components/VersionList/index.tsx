@@ -1,4 +1,5 @@
 /*
+ *
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
  *  this work for additional information regarding copyright ownership.
@@ -17,12 +18,22 @@
  */
 
 import { PopconfirmDeleteBtn } from '@/components/CallBackButton/PopconfirmDeleteBtn';
-import { TaskVersionListItem } from '@/types/Studio/data';
 import { l } from '@/utils/intl';
 import { DeliveredProcedureOutlined } from '@ant-design/icons';
 import { List, Skeleton, Space, Tag, Tooltip } from 'antd';
 import { ListItemTypeProps } from 'antd/es/list/Item';
 
+export type TaskVersionListItem = {
+  id: number;
+  taskId?: number;
+  name?: string;
+  dialect?: string;
+  type?: string;
+  statement: string;
+  versionId?: string;
+  createTime?: string;
+  isLatest?: boolean;
+};
 export interface VersionListProps {
   data: TaskVersionListItem[];
   onSelectListen?: (value: TaskVersionListItem) => void;
@@ -52,7 +63,7 @@ const VersionList = (props: VersionListProps) => {
             title={
               <a>
                 {!item.isLatest ? (
-                  `V${item.versionId}`
+                  `V-${item.versionId}`
                 ) : (
                   <Tag key={'v-latest'} color='green'>
                     {l('devops.jobinfo.version.latestVersion')}

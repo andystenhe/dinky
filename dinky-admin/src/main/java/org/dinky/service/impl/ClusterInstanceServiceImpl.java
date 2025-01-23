@@ -19,32 +19,49 @@
 
 package org.dinky.service.impl;
 
-import org.dinky.assertion.Assert;
 import org.dinky.assertion.Asserts;
+import org.dinky.assertion.DinkyAssert;
 import org.dinky.cluster.FlinkCluster;
 import org.dinky.cluster.FlinkClusterInfo;
-import org.dinky.constant.FlinkConstant;
-import org.dinky.data.model.Cluster;
+import org.dinky.data.dto.ClusterInstanceDTO;
+import org.dinky.data.enums.GatewayType;
+import org.dinky.data.enums.Status;
+import org.dinky.data.exception.BusException;
+import org.dinky.data.exception.DinkyException;
 import org.dinky.data.model.ClusterConfiguration;
+import org.dinky.data.model.ClusterInstance;
+import org.dinky.data.model.Task;
 import org.dinky.gateway.config.GatewayConfig;
 import org.dinky.gateway.exception.GatewayException;
 import org.dinky.gateway.model.FlinkClusterConfig;
 import org.dinky.gateway.result.GatewayResult;
+import org.dinky.job.JobConfig;
 import org.dinky.job.JobManager;
 import org.dinky.mapper.ClusterInstanceMapper;
 import org.dinky.mybatis.service.impl.SuperServiceImpl;
 import org.dinky.service.ClusterConfigurationService;
 import org.dinky.service.ClusterInstanceService;
+import org.dinky.service.TaskService;
+import org.dinky.utils.IpUtil;
+import org.dinky.utils.URLUtils;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
+import cn.hutool.core.thread.ThreadUtil;
+import cn.hutool.core.util.StrUtil;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -54,10 +71,14 @@ import lombok.RequiredArgsConstructor;
  */
 @Service
 @RequiredArgsConstructor
-public class ClusterInstanceServiceImpl extends SuperServiceImpl<ClusterInstanceMapper, Cluster>
+public class ClusterInstanceServiceImpl extends SuperServiceImpl<ClusterInstanceMapper, ClusterInstance>
         implements ClusterInstanceService {
 
     private final ClusterConfigurationService clusterConfigurationService;
+
+    @Autowired
+    @Lazy
+    private TaskService taskService;
 
     @Override
     public FlinkClusterInfo checkHeartBeat(String hosts, String host) {
@@ -65,92 +86,116 @@ public class ClusterInstanceServiceImpl extends SuperServiceImpl<ClusterInstance
     }
 
     @Override
-    public String getJobManagerAddress(Cluster cluster) {
-        Assert.check(cluster);
-        FlinkClusterInfo info = FlinkCluster.testFlinkJobManagerIP(cluster.getHosts(), cluster.getJobManagerHost());
+    public String getJobManagerAddress(ClusterInstance clusterInstance) {
+        DinkyAssert.check(clusterInstance);
+        FlinkClusterInfo info =
+                FlinkCluster.testFlinkJobManagerIP(clusterInstance.getHosts(), clusterInstance.getJobManagerHost());
         String host = null;
         if (info.isEffective()) {
             host = info.getJobManagerAddress();
         }
-        Assert.checkHost(host);
-        if (!host.equals(cluster.getJobManagerHost())) {
-            cluster.setJobManagerHost(host);
-            updateById(cluster);
+        DinkyAssert.checkHost(host);
+        if (!host.equals(clusterInstance.getJobManagerHost())) {
+            clusterInstance.setJobManagerHost(host);
+            updateById(clusterInstance);
         }
         return host;
     }
 
     @Override
-    public String buildEnvironmentAddress(boolean useRemote, Integer id) {
-        if (useRemote && id != 0) {
+    public String buildEnvironmentAddress(JobConfig config) {
+        Integer id = config.getClusterId();
+        Boolean useRemote = config.isUseRemote();
+        if (useRemote && id != null && id != 0) {
             return buildRemoteEnvironmentAddress(id);
         } else {
-            return buildLocalEnvironmentAddress();
+            Map<String, String> flinkConfig = config.getConfigJson();
+            int port;
+            if (Asserts.isNotNull(flinkConfig) && flinkConfig.containsKey("rest.port")) {
+                port = Integer.valueOf(flinkConfig.get("rest.port"));
+            } else {
+                port = URLUtils.getRandomPort();
+                while (!IpUtil.isPortAvailable(port)) {
+                    port = URLUtils.getRandomPort();
+                }
+            }
+            return buildLocalEnvironmentAddress(port);
         }
     }
 
-    @Override
-    public String buildRemoteEnvironmentAddress(Integer id) {
+    private String buildRemoteEnvironmentAddress(Integer id) {
         return getJobManagerAddress(getById(id));
     }
 
-    @Override
-    public String buildLocalEnvironmentAddress() {
-        try {
-            InetAddress inetAddress = InetAddress.getLocalHost();
-            if (inetAddress != null) {
-                return inetAddress.getHostAddress();
-            }
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        }
-        return FlinkConstant.LOCAL_HOST;
+    private String buildLocalEnvironmentAddress(int port) {
+        return "0.0.0.0:" + port;
     }
 
     @Override
-    public List<Cluster> listEnabledAllClusterInstance() {
-        return this.list(new QueryWrapper<Cluster>().eq("enabled", 1));
+    public List<ClusterInstance> listEnabledAllClusterInstance() {
+        return this.list(new LambdaQueryWrapper<ClusterInstance>().eq(ClusterInstance::getEnabled, 1));
     }
 
     @Override
-    public List<Cluster> listSessionEnable() {
+    public List<ClusterInstance> listSessionEnable() {
         return baseMapper.listSessionEnable();
     }
 
     @Override
-    public List<Cluster> listAutoEnable() {
-        return list(new QueryWrapper<Cluster>().eq("enabled", 1).eq("auto_registers", 1));
+    public List<ClusterInstance> listAutoEnable() {
+        return list(new LambdaQueryWrapper<ClusterInstance>()
+                .eq(ClusterInstance::getEnabled, 1)
+                .eq(ClusterInstance::isAutoRegisters, 1));
     }
 
     @Override
-    public Cluster registersCluster(Cluster cluster) {
-        checkHealth(cluster);
-        saveOrUpdate(cluster);
-        return cluster;
+    public ClusterInstance registersCluster(ClusterInstanceDTO clusterInstanceDTO) {
+        ClusterInstance clusterInstance = clusterInstanceDTO.toBean();
+
+        return this.registersCluster(clusterInstance);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ClusterInstance registersCluster(ClusterInstance clusterInstance) {
+        checkHealth(clusterInstance);
+        if (StrUtil.isEmpty(clusterInstance.getAlias())) {
+            clusterInstance.setAlias(clusterInstance.getName());
+        }
+        saveOrUpdate(clusterInstance);
+        return clusterInstance;
     }
 
     /**
-     * @param id
-     * @return
+     * @param id cluster instance id
      */
     @Override
     public Boolean deleteClusterInstanceById(Integer id) {
-        return baseMapper.deleteById(id) > 0;
+        if (hasRelationShip(id)) {
+            throw new BusException(Status.CLUSTER_INSTANCE_EXIST_RELATIONSHIP);
+        }
+        ClusterInstance clusterInstance = getById(id);
+        // if cluster instance is not null and cluster instance is health, can not delete, must kill cluster instance
+        // first
+        if (Asserts.isNotNull(clusterInstance) && checkHealth(clusterInstance) && clusterInstance.isAutoRegisters()) {
+            throw new BusException(Status.CLUSTER_INSTANCE_HEALTH_NOT_DELETE);
+        }
+        return removeById(id);
     }
 
     @Override
     public Boolean modifyClusterInstanceStatus(Integer id) {
-        Cluster clusterInfo = getById(id);
-        clusterInfo.setEnabled(!clusterInfo.getEnabled());
-        checkHealth(clusterInfo);
-        return updateById(clusterInfo);
+        ClusterInstance clusterInstanceInfo = getById(id);
+        clusterInstanceInfo.setEnabled(!clusterInstanceInfo.getEnabled());
+        checkHealth(clusterInstanceInfo);
+        return updateById(clusterInstanceInfo);
     }
 
     @Override
     public Integer recycleCluster() {
-        List<Cluster> clusters = listAutoEnable();
+        List<ClusterInstance> clusterInstances = listAutoEnable();
         int count = 0;
-        for (Cluster item : clusters) {
+        for (ClusterInstance item : clusterInstances) {
             if ((!checkHealth(item)) && removeById(item)) {
                 count++;
             }
@@ -160,45 +205,105 @@ public class ClusterInstanceServiceImpl extends SuperServiceImpl<ClusterInstance
 
     @Override
     public void killCluster(Integer id) {
-        Cluster cluster = getById(id);
-        if (Asserts.isNull(cluster)) {
-            throw new GatewayException("The cluster does not exist.");
-        } else if (!checkHealth(cluster)) {
-            throw new GatewayException("The cluster has been killed.");
+        ClusterInstance clusterInstance = getById(id);
+        if (hasRelationShip(id)) {
+            throw new BusException(Status.CLUSTER_INSTANCE_EXIST_RELATIONSHIP);
+        } else if (Asserts.isNull(clusterInstance)) {
+            throw new BusException(Status.CLUSTER_NOT_EXIST);
+        } else if (!checkHealth(clusterInstance)) {
+            throw new BusException(Status.CLUSTER_INSTANCE_NOT_HEALTH);
+        } else if (clusterInstance.getType().equals(GatewayType.LOCAL.getLongValue())) {
+            // todo: kill local cluster instance by id is not support
+            throw new BusException(Status.CLUSTER_INSTANCE_LOCAL_NOT_SUPPORT_KILL);
+        } else {
+            Integer clusterConfigurationId = clusterInstance.getClusterConfigurationId();
+            FlinkClusterConfig flinkClusterConfig =
+                    clusterConfigurationService.getFlinkClusterCfg(clusterConfigurationId);
+            GatewayConfig gatewayConfig = GatewayConfig.build(flinkClusterConfig);
+            JobManager.killCluster(gatewayConfig, clusterInstance.getName());
         }
-        Integer clusterConfigurationId = cluster.getClusterConfigurationId();
-        FlinkClusterConfig flinkClusterConfig = clusterConfigurationService.getFlinkClusterCfg(clusterConfigurationId);
-        GatewayConfig gatewayConfig = GatewayConfig.build(flinkClusterConfig);
-        JobManager.killCluster(gatewayConfig, cluster.getName());
     }
 
     @Override
-    public Cluster deploySessionCluster(Integer id) {
-        ClusterConfiguration clusterConfiguration = clusterConfigurationService.getClusterConfigById(id);
-        if (Asserts.isNull(clusterConfiguration)) {
+    public ClusterInstance deploySessionCluster(Integer id) {
+        ClusterConfiguration clusterCfg = clusterConfigurationService.getClusterConfigById(id);
+        if (Asserts.isNull(clusterCfg)) {
             throw new GatewayException("The cluster configuration does not exist.");
         }
-        GatewayConfig gatewayConfig = GatewayConfig.build(clusterConfiguration.getFlinkClusterCfg());
+        GatewayConfig gatewayConfig =
+                GatewayConfig.build(FlinkClusterConfig.create(clusterCfg.getType(), clusterCfg.getConfigJson()));
+        gatewayConfig.setType(gatewayConfig.getType().getSessionType());
         GatewayResult gatewayResult = JobManager.deploySessionCluster(gatewayConfig);
-        return registersCluster(Cluster.autoRegistersCluster(
-                gatewayResult.getWebURL().replace("http://", ""),
-                gatewayResult.getId(),
-                clusterConfiguration.getName() + "_" + LocalDateTime.now(),
-                clusterConfiguration.getName() + LocalDateTime.now(),
-                id,
-                null));
+        if (gatewayResult.isSuccess()) {
+            Asserts.checkNullString(gatewayResult.getWebURL(), "Unable to obtain Web URL.");
+            ClusterInstance registersedCluster = registersCluster(ClusterInstanceDTO.builder()
+                    .hosts(gatewayResult.getWebURL().replace("http://", ""))
+                    .name(gatewayResult.getId())
+                    .alias(clusterCfg.getName() + "_"
+                            + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")))
+                    .type(gatewayConfig.getType().getLongValue())
+                    .clusterConfigurationId(id)
+                    .autoRegisters(false)
+                    .enabled(true)
+                    .note(String.format("Deployment from cluster configuration [%s]", clusterCfg.getName()))
+                    .build());
+            // check health after deploy session cluster
+            checkHealth(registersedCluster);
+            return registersedCluster;
+        }
+        throw new DinkyException("Deploy session cluster error: " + gatewayResult.getError());
     }
 
-    private boolean checkHealth(Cluster cluster) {
-        FlinkClusterInfo info = checkHeartBeat(cluster.getHosts(), cluster.getJobManagerHost());
+    /**
+     * @param searchKeyWord
+     * @return
+     */
+    @Override
+    public List<ClusterInstance> selectListByKeyWord(String searchKeyWord, boolean isAutoCreate) {
+        return getBaseMapper()
+                .selectList(new LambdaQueryWrapper<ClusterInstance>()
+                        .and(true, i -> i.eq(ClusterInstance::isAutoRegisters, isAutoCreate))
+                        .and(true, i -> i.like(ClusterInstance::getName, searchKeyWord)
+                                .or()
+                                .like(ClusterInstance::getAlias, searchKeyWord)
+                                .or()
+                                .like(ClusterInstance::getNote, searchKeyWord)));
+    }
+
+    /**
+     * check cluster instance has relationship
+     *
+     * @param id {@link Integer} alert template id
+     * @return {@link Boolean} true: has relationship, false: no relationship
+     */
+    @Override
+    public boolean hasRelationShip(Integer id) {
+        return !taskService
+                .list(new LambdaQueryWrapper<Task>().eq(Task::getClusterId, id))
+                .isEmpty();
+    }
+
+    @Override
+    public Long heartbeat() {
+        List<ClusterInstance> clusterInstances = this.list();
+        ExecutorService executor = ThreadUtil.newExecutor(Math.min(clusterInstances.size(), 10));
+        List<CompletableFuture<Integer>> futures = clusterInstances.stream()
+                .map(c ->
+                        CompletableFuture.supplyAsync(() -> registersCluster(c).getStatus(), executor))
+                .collect(Collectors.toList());
+        return futures.stream().map(CompletableFuture::join).filter(x -> x == 1).count();
+    }
+
+    private boolean checkHealth(ClusterInstance clusterInstance) {
+        FlinkClusterInfo info = checkHeartBeat(clusterInstance.getHosts(), clusterInstance.getJobManagerHost());
         if (!info.isEffective()) {
-            cluster.setJobManagerHost("");
-            cluster.setStatus(0);
+            clusterInstance.setJobManagerHost("");
+            clusterInstance.setStatus(0);
             return false;
         } else {
-            cluster.setJobManagerHost(info.getJobManagerAddress());
-            cluster.setStatus(1);
-            cluster.setVersion(info.getVersion());
+            clusterInstance.setJobManagerHost(info.getJobManagerAddress());
+            clusterInstance.setStatus(1);
+            clusterInstance.setVersion(info.getVersion());
             return true;
         }
     }

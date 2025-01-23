@@ -1,18 +1,20 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 import {
@@ -22,6 +24,7 @@ import {
   HiveIcons,
   MysqlIcons,
   OracleIcons,
+  PaimonIcons,
   PhoenixIcons,
   PostgresqlIcons,
   PrestoIcons,
@@ -29,6 +32,7 @@ import {
   StarRocksIcons
 } from '@/components/Icons/DBIcons';
 import { QUERY_KEYWORD } from '@/pages/RegCenter/DataSource/components/constants';
+import { DIALECT } from '@/services/constants';
 
 /**
  * render DB icon
@@ -37,35 +41,36 @@ import { QUERY_KEYWORD } from '@/pages/RegCenter/DataSource/components/constants
  */
 export const renderDBIcon = (type: string, size?: number) => {
   switch (type.toLowerCase()) {
-    case 'mysql':
+    case DIALECT.MYSQL:
       return <MysqlIcons size={size} />;
-    case 'oracle':
+    case DIALECT.ORACLE:
       return <OracleIcons size={size} />;
-    case 'postgresql':
+    case DIALECT.POSTGRESQL:
       return <PostgresqlIcons size={size} />;
-    case 'clickhouse':
+    case DIALECT.CLICKHOUSE:
       return <ClickHouseIcons size={size} />;
-    case 'sqlserver':
+    case DIALECT.SQLSERVER:
       return <SqlServerIcons size={size} />;
-    case 'doris':
+    case DIALECT.DORIS:
       return <DorisIcons size={size} />;
-    case 'phoenix':
+    case DIALECT.PHOENIX:
       return <PhoenixIcons size={size} />;
-    case 'hive':
+    case DIALECT.HIVE:
       return <HiveIcons size={size} />;
-    case 'starrocks':
+    case DIALECT.STARROCKS:
       return <StarRocksIcons size={size} />;
-    case 'presto':
+    case DIALECT.PRESTO:
       return <PrestoIcons size={size} />;
+    case DIALECT.PAIMON:
+      return <PaimonIcons size={size} />;
     default:
       return <DefaultDBIcons size={size} />;
   }
 };
 
-export const buildColumnsQueryKeyWord = (data: string[]) => {
-  const result = data.concat(QUERY_KEYWORD).map((item: string | number) => ({
+export const buildColumnsQueryKeyWord = (data: string[] = []) => {
+  return data.concat(QUERY_KEYWORD).map((item: string | number) => ({
     value: item,
     label: item
   }));
-  return result;
 };

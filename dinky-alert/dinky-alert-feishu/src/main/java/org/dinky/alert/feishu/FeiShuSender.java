@@ -20,14 +20,17 @@
 package org.dinky.alert.feishu;
 
 import org.dinky.alert.AlertResult;
+import org.dinky.alert.feishu.params.FeiShuParams;
 import org.dinky.assertion.Asserts;
 import org.dinky.data.model.ProxyConfig;
 import org.dinky.utils.HttpUtils;
-import org.dinky.utils.JSONUtil;
+import org.dinky.utils.JsonUtils;
 
 import org.apache.commons.codec.binary.Base64;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -36,6 +39,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.CollectionUtils;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -44,52 +48,42 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public final class FeiShuSender {
     private static final Logger logger = LoggerFactory.getLogger(FeiShuSender.class);
-    private final String url;
-    private final String secret;
-    private final String keyword;
-    private String atUserIds;
 
+    private final FeiShuParams feiShuParams;
     private ProxyConfig proxyConfig = null;
 
-    FeiShuSender(Map<String, String> config) {
-        url = config.get(FeiShuConstants.WEB_HOOK);
+    FeiShuSender(Map<String, Object> config) {
 
-        keyword = config.getOrDefault(FeiShuConstants.KEYWORD, "").replace("\r\n", "");
-        secret = config.get(FeiShuConstants.SECRET);
+        this.feiShuParams = JsonUtils.toBean(config, FeiShuParams.class);
 
-        Boolean enableProxy = Boolean.valueOf(config.get(FeiShuConstants.PROXY_ENABLE));
-        if (Boolean.TRUE.equals(enableProxy)) {
-            String proxy = config.get(FeiShuConstants.PROXY);
-            Integer port = Integer.parseInt(config.get(FeiShuConstants.PORT));
-            String user = config.get(FeiShuConstants.USER);
-            String password = config.get(FeiShuConstants.PASSWORD);
-            proxyConfig = new ProxyConfig(proxy, port, user, password);
-        }
-
-        Boolean atAll = Boolean.valueOf(config.get(FeiShuConstants.AT_ALL));
-        if (Boolean.FALSE.equals(atAll)) {
-            atUserIds = config.get(FeiShuConstants.AT_USERS);
+        if (Boolean.TRUE.equals(feiShuParams.isEnableProxy())) {
+            proxyConfig = new ProxyConfig(
+                    feiShuParams.getHostname(),
+                    feiShuParams.getPort(),
+                    feiShuParams.getUser(),
+                    feiShuParams.getPassword());
         }
     }
 
     /**
      * build template params
      *
-     * @param title
-     * @param content
-     * @return
+     * @param title   title
+     * @param content content
      */
     public Map<String, Object> buildTemplateParams(String title, String content) {
         Map<String, Object> params = new HashMap<>();
         params.put(FeiShuConstants.ALERT_TEMPLATE_TITLE, title);
         params.put(FeiShuConstants.ALERT_TEMPLATE_CONTENT, content);
-        params.put(FeiShuConstants.ALERT_TEMPLATE_KEYWORD, keyword);
-        if (Asserts.isNotNullString(secret)) {
-            Integer currentTimeMillis = Math.toIntExact(System.currentTimeMillis() / 1000);
+        params.put(FeiShuConstants.ALERT_TEMPLATE_KEYWORD, feiShuParams.getKeyword());
+        if (Asserts.isNotNullString(feiShuParams.getSecret())) {
+            Integer currentTimeMillis = Math.toIntExact(System.currentTimeMillis() / 1000) - 1800;
             params.put(FeiShuConstants.SIGN_TMESTAMP, currentTimeMillis);
-            params.put(FeiShuConstants.SIGN, getSign(secret, currentTimeMillis));
+            params.put(FeiShuConstants.SIGN, getSign(feiShuParams.getSecret(), currentTimeMillis));
         }
-        String[] atUsers = Asserts.isNullString(atUserIds) ? new String[] {"all"} : atUserIds.split(",");
+        List<String> atUsers = CollectionUtils.isEmpty(feiShuParams.getAtUsers())
+                ? Collections.singletonList("all")
+                : feiShuParams.getAtUsers();
         params.put(FeiShuConstants.ALERT_TEMPLATE_AT_USERS, atUsers);
         return params;
     }
@@ -97,15 +91,14 @@ public final class FeiShuSender {
     /**
      * main send msg
      *
-     * @param content
+     * @param content content
      * @return AlertResult
      */
     public AlertResult send(String content) {
         try {
-            return checkSendMsgResult(HttpUtils.post(url, content, proxyConfig));
+            return checkSendMsgResult(HttpUtils.post(feiShuParams.getWebhook(), content, proxyConfig));
         } catch (Exception e) {
-            e.printStackTrace();
-            logger.error("send fei shu alert msg  exception : {}", e.getMessage());
+            logger.error("send fei shu alert msg  exception : {}", e.getMessage(), e);
             AlertResult alertResult = new AlertResult();
             alertResult.setSuccess(false);
             alertResult.setMessage("send fei shu alert fail.");
@@ -116,11 +109,14 @@ public final class FeiShuSender {
     /**
      * generate sign
      *
-     * @param secretKey
-     * @param timestamp
-     * @return
+     * @param secretKey secretKey
+     * @param timestamp timestamp
+     * @return sign
      */
     private String getSign(String secretKey, Integer timestamp) {
+        if (Math.abs(System.currentTimeMillis() / 1000 - timestamp) > 3600) {
+            throw new IllegalArgumentException("timestamp is invalid, must be within 1 hour of current time");
+        }
         String stringToSign = timestamp + FeiShuConstants.ENTER_LINE + secretKey;
         String sign = "";
         try {
@@ -137,8 +133,8 @@ public final class FeiShuSender {
     /**
      * checkSendFeiShuSendMsgResult
      *
-     * @param result
-     * @return
+     * @param result result
+     * @return AlertResult
      */
     public static AlertResult checkSendMsgResult(String result) {
         AlertResult alertResult = new AlertResult();
@@ -146,26 +142,23 @@ public final class FeiShuSender {
 
         if (Asserts.isNull(result)) {
             alertResult.setMessage("send fei shu msg error");
-            logger.info("send fei shu msg error,fei shu server resp is null");
+            logger.error("send fei shu msg error,fei shu server resp is null");
             return alertResult;
         }
-        FeiShuSendMsgResponse sendMsgResponse = JSONUtil.parseObject(result, FeiShuSendMsgResponse.class);
+        FeiShuSendMsgResponse sendMsgResponse = JsonUtils.parseObject(result, FeiShuSendMsgResponse.class);
 
         if (null == sendMsgResponse) {
             alertResult.setMessage("send fei shu msg fail");
-            logger.info("send fei shu msg error,resp error");
+            logger.error("send fei shu msg error,resp error");
             return alertResult;
         }
-        if (sendMsgResponse.code == 0) {
-            alertResult.setSuccess(true);
-            alertResult.setMessage("send fei shu msg success");
+        if (sendMsgResponse.code != 0) {
+            alertResult.setMessage("send fei shu msg fail" + sendMsgResponse.getStatusMessage());
+            logger.error("send fei shu msg error,resp error : {}  ", sendMsgResponse.getStatusMessage());
             return alertResult;
         }
-        alertResult.setMessage(String.format("alert send fei shu msg error : %s", sendMsgResponse.getStatusMessage()));
-        logger.info(
-                "alert send fei shu msg error : {} ,Extra : {} ",
-                sendMsgResponse.getStatusMessage(),
-                sendMsgResponse.getExtra());
+        alertResult.setSuccess(true);
+        alertResult.setMessage("send fei shu msg success" + sendMsgResponse.getStatusMessage());
         return alertResult;
     }
 
@@ -218,31 +211,31 @@ public final class FeiShuSender {
                 return false;
             }
             final FeiShuSendMsgResponse other = (FeiShuSendMsgResponse) o;
-            final Object this$extra = this.getExtra();
-            final Object other$extra = other.getExtra();
-            if (!Objects.equals(this$extra, other$extra)) {
+            final Object thisExtra = this.getExtra();
+            final Object otherExtra = other.getExtra();
+            if (!Objects.equals(thisExtra, otherExtra)) {
                 return false;
             }
-            final Object this$statusCode = this.getStatusCode();
-            final Object other$statusCode = other.getStatusCode();
-            if (!Objects.equals(this$statusCode, other$statusCode)) {
+            final Object thisStatusCode = this.getStatusCode();
+            final Object otherStatusCode = other.getStatusCode();
+            if (!Objects.equals(thisStatusCode, otherStatusCode)) {
                 return false;
             }
-            final Object this$statusMessage = this.getStatusMessage();
-            final Object other$statusMessage = other.getStatusMessage();
-            return Objects.equals(this$statusMessage, other$statusMessage);
+            final Object thisStatusMessage = this.getStatusMessage();
+            final Object otherStatusMessage = other.getStatusMessage();
+            return Objects.equals(thisStatusMessage, otherStatusMessage);
         }
 
         @Override
         public int hashCode() {
-            final int PRIME = 59;
+            final int prime = 59;
             int result = 1;
-            final Object $extra = this.getExtra();
-            result = result * PRIME + ($extra == null ? 43 : $extra.hashCode());
-            final Object $statusCode = this.getStatusCode();
-            result = result * PRIME + ($statusCode == null ? 43 : $statusCode.hashCode());
-            final Object $statusMessage = this.getStatusMessage();
-            result = result * PRIME + ($statusMessage == null ? 43 : $statusMessage.hashCode());
+            final Object extra = this.getExtra();
+            result = result * prime + (extra == null ? 43 : extra.hashCode());
+            final Object statusCode = this.getStatusCode();
+            result = result * prime + (statusCode == null ? 43 : statusCode.hashCode());
+            final Object statusMessage = this.getStatusMessage();
+            result = result * prime + (statusMessage == null ? 43 : statusMessage.hashCode());
             return result;
         }
 

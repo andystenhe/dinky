@@ -21,38 +21,84 @@ package org.dinky.job;
 
 import org.dinky.assertion.Asserts;
 import org.dinky.data.constant.NetConstant;
-import org.dinky.executor.ExecutorSetting;
+import org.dinky.data.enums.GatewayType;
+import org.dinky.data.model.CustomConfig;
+import org.dinky.executor.ExecutorConfig;
+import org.dinky.gateway.config.FlinkConfig;
 import org.dinky.gateway.config.GatewayConfig;
-import org.dinky.gateway.enums.GatewayType;
 import org.dinky.gateway.enums.SavePointStrategy;
 import org.dinky.gateway.model.FlinkClusterConfig;
 
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.configuration.RestOptions;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import cn.hutool.core.lang.Assert;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 
 /**
  * JobConfig
  *
  * @since 2021/6/27 18:45
  */
-@Getter
-@Setter
+@Data
+@Builder
+@AllArgsConstructor
 @ApiModel(value = "JobConfig", description = "Configuration details of a job")
 public class JobConfig {
 
-    @ApiModelProperty(value = "Flink run mode", dataType = "String", example = "batch", notes = "Flink run mode")
+    @ApiModelProperty(
+            value = "Flink run mode",
+            dataType = "String",
+            example = "local standalone",
+            notes = "Flink run mode")
     private String type;
+
+    @ApiModelProperty(value = "Check Point", dataType = "Integer", example = "1", notes = "Check point for the task")
+    private Integer checkpoint;
+
+    @ApiModelProperty(value = "Save point strategy", dataType = "SavePointStrategy", notes = "Save point strategy")
+    private SavePointStrategy savePointStrategy;
+
+    @ApiModelProperty(value = "Save Point Path", dataType = "String", notes = "Save point path for the task")
+    private String savePointPath;
+
+    @ApiModelProperty(value = "Parallelism level", dataType = "Integer", example = "4", notes = "Parallelism level")
+    private Integer parallelism;
+
+    @ApiModelProperty(value = "Cluster ID", dataType = "Integer", example = "456", notes = "Cluster ID")
+    private Integer clusterId;
+
+    @ApiModelProperty(
+            value = "Cluster configuration ID",
+            dataType = "Integer",
+            example = "789",
+            notes = "Cluster configuration ID")
+    private Integer clusterConfigurationId;
 
     @ApiModelProperty(value = "Task JobLifeCycle", dataType = "Integer", example = "2", notes = "Task JobLifeCycle")
     private Integer step;
+
+    @ApiModelProperty(
+            value = "JSON configuration",
+            dataType = "Map<String, String>",
+            example = "{\"config1\": \"value1\", \"config2\": \"value2\"}",
+            notes = "JSON configuration")
+    private Map<String, String> configJson;
+
+    @ApiModelProperty(
+            value = "UDF configuration",
+            dataType = "Map<String, String>",
+            example = "{\"udf1\": \"value1\", \"udf2\": \"value2\"}",
+            notes = "UDF (User-Defined Function) configuration")
+    private Map<String, String> udfRefer;
 
     @ApiModelProperty(
             value = "Flag indicating whether to use the result",
@@ -76,45 +122,11 @@ public class JobConfig {
     private boolean useAutoCancel;
 
     @ApiModelProperty(
-            value = "Flag indicating whether to use session",
-            dataType = "boolean",
-            example = "true",
-            notes = "Flag indicating whether to use session")
-    private boolean useSession;
-
-    @ApiModelProperty(
-            value = "Session information",
-            dataType = "String",
-            example = "session-123",
-            notes = "Session information")
-    private String session;
-
-    @ApiModelProperty(
             value = "Flag indicating whether to use remote execution",
             dataType = "boolean",
             example = "false",
             notes = "Flag indicating whether to use remote execution")
     private boolean useRemote;
-
-    @ApiModelProperty(value = "Cluster ID", dataType = "Integer", example = "456", notes = "Cluster ID")
-    private Integer clusterId;
-
-    @ApiModelProperty(
-            value = "Cluster configuration ID",
-            dataType = "Integer",
-            example = "789",
-            notes = "Cluster configuration ID")
-    private Integer clusterConfigurationId;
-
-    @ApiModelProperty(value = "JAR file ID", dataType = "Integer", example = "101", notes = "JAR file ID")
-    private Integer jarId;
-
-    @ApiModelProperty(
-            value = "Flag indicating whether it's a JAR task",
-            dataType = "boolean",
-            example = "false",
-            notes = "Flag indicating whether it's a JAR task")
-    private boolean isJarTask;
 
     @ApiModelProperty(
             value = "Job manager address",
@@ -148,21 +160,21 @@ public class JobConfig {
             dataType = "boolean",
             example = "true",
             notes = "Flag indicating whether to use SQL fragment")
-    private boolean useSqlFragment;
+    private boolean fragment;
 
     @ApiModelProperty(
             value = "Flag indicating whether to use statement set",
             dataType = "boolean",
             example = "false",
             notes = "Flag indicating whether to use statement set")
-    private boolean useStatementSet;
+    private boolean statementSet;
 
     @ApiModelProperty(
             value = "Flag indicating whether to use batch model",
             dataType = "boolean",
             example = "true",
             notes = "Flag indicating whether to use batch model")
-    private boolean useBatchModel;
+    private boolean batchModel;
 
     @ApiModelProperty(
             value = "Maximum number of rows",
@@ -172,24 +184,18 @@ public class JobConfig {
     private Integer maxRowNum;
 
     @ApiModelProperty(
-            value = "Checkpoint interval",
-            dataType = "Integer",
-            example = "5000",
-            notes = "Checkpoint interval")
-    private Integer checkpoint;
-
-    @ApiModelProperty(value = "Parallelism level", dataType = "Integer", example = "4", notes = "Parallelism level")
-    private Integer parallelism;
-
-    @ApiModelProperty(value = "Save point strategy", dataType = "SavePointStrategy", notes = "Save point strategy")
-    private SavePointStrategy savePointStrategy;
+            value = "Flag indicating whether to mock sink function",
+            dataType = "boolean",
+            example = "true",
+            notes = "Flag indicating whether to mock sink function")
+    private boolean mockSinkFunction;
 
     @ApiModelProperty(
-            value = "Path for save points",
-            dataType = "String",
-            example = "/savepoints",
-            notes = "Path for save points")
-    private String savePointPath;
+            value = "Flag indicating whether to be submission mode",
+            dataType = "boolean",
+            example = "true",
+            notes = "Flag indicating whether to be submission mode")
+    private boolean isSubmissionMode;
 
     @ApiModelProperty(value = "Gateway configuration", dataType = "GatewayConfig", notes = "Gateway configuration")
     private GatewayConfig gatewayConfig;
@@ -201,15 +207,8 @@ public class JobConfig {
             notes = "Map of variables")
     private Map<String, String> variables;
 
-    @ApiModelProperty(
-            value = "JSON configuration",
-            dataType = "Map<String, String>",
-            example = "{\"config1\": \"value1\", \"config2\": \"value2\"}",
-            notes = "JSON configuration")
-    private Map<String, String> configJson;
-
     public JobConfig() {
-        this.configJson = new HashMap<String, String>();
+        this.configJson = new HashMap<>();
     }
 
     public void setAddress(String address) {
@@ -220,210 +219,83 @@ public class JobConfig {
             if (colonIndex == -1) {
                 this.address = address + NetConstant.COLON + configJson.get(RestOptions.PORT.key());
             } else {
-                this.address = address.replaceAll("(?<=:)\\d{0,6}$", configJson.get(RestOptions.PORT.key()));
+                String port =
+                        configJson.getOrDefault(RestOptions.BIND_PORT.key(), configJson.get(RestOptions.PORT.key()));
+                this.address = address.replaceAll("(?<=:)\\d{0,6}$", port);
             }
         } else {
             this.address = address;
         }
     }
 
-    public JobConfig(
-            String type,
-            boolean useSession,
-            boolean useRemote,
-            boolean useSqlFragment,
-            boolean useStatementSet,
-            Integer parallelism,
-            Map<String, String> configJson) {
-        this.type = type;
-        this.useSession = useSession;
-        this.useRemote = useRemote;
-        this.useSqlFragment = useSqlFragment;
-        this.useStatementSet = useStatementSet;
-        this.parallelism = parallelism;
-        this.configJson = configJson;
-    }
-
-    public JobConfig(
-            String type,
-            boolean useResult,
-            boolean useChangeLog,
-            boolean useAutoCancel,
-            boolean useSession,
-            String session,
-            Integer clusterId,
-            Integer clusterConfigurationId,
-            Integer jarId,
-            Integer taskId,
-            String jobName,
-            boolean useSqlFragment,
-            boolean useStatementSet,
-            boolean useBatchModel,
-            Integer maxRowNum,
-            Integer checkpoint,
-            Integer parallelism,
-            Integer savePointStrategyValue,
-            String savePointPath,
-            Map<String, String> variables,
-            Map<String, String> configJson) {
-        this.type = type;
-        this.useResult = useResult;
-        this.useChangeLog = useChangeLog;
-        this.useAutoCancel = useAutoCancel;
-        this.useSession = useSession;
-        this.session = session;
-        this.useRemote = true;
-        this.clusterId = clusterId;
-        this.clusterConfigurationId = clusterConfigurationId;
-        this.jarId = jarId;
-        this.taskId = taskId;
-        this.jobName = jobName;
-        this.useSqlFragment = useSqlFragment;
-        this.useStatementSet = useStatementSet;
-        this.useBatchModel = useBatchModel;
-        this.maxRowNum = maxRowNum;
-        this.checkpoint = checkpoint;
-        this.parallelism = parallelism;
-        this.savePointStrategy = SavePointStrategy.get(savePointStrategyValue);
-        this.savePointPath = savePointPath;
-        this.variables = variables;
-        this.configJson = configJson;
-    }
-
-    public JobConfig(
-            String type,
-            boolean useResult,
-            boolean useChangeLog,
-            boolean useAutoCancel,
-            boolean useSession,
-            String session,
-            boolean useRemote,
-            String address,
-            String jobName,
-            boolean useSqlFragment,
-            boolean useStatementSet,
-            Integer maxRowNum,
-            Integer checkpoint,
-            Integer parallelism,
-            Integer savePointStrategyValue,
-            String savePointPath,
-            Map<String, String> configJson,
-            GatewayConfig gatewayConfig) {
-        this.type = type;
-        this.useResult = useResult;
-        this.useChangeLog = useChangeLog;
-        this.useAutoCancel = useAutoCancel;
-        this.useSession = useSession;
-        this.session = session;
-        this.useRemote = useRemote;
-        this.jobName = jobName;
-        this.useSqlFragment = useSqlFragment;
-        this.useStatementSet = useStatementSet;
-        this.maxRowNum = maxRowNum;
-        this.checkpoint = checkpoint;
-        this.parallelism = parallelism;
-        this.savePointStrategy = SavePointStrategy.get(savePointStrategyValue);
-        this.savePointPath = savePointPath;
-        this.configJson = configJson;
-        this.gatewayConfig = gatewayConfig;
-        setAddress(address);
-    }
-
-    public JobConfig(
-            String type,
-            boolean useResult,
-            boolean useSession,
-            String session,
-            boolean useRemote,
-            Integer clusterId,
-            Integer maxRowNum) {
-        this.type = type;
-        this.useResult = useResult;
-        this.useSession = useSession;
-        this.session = session;
-        this.useRemote = useRemote;
-        this.clusterId = clusterId;
-        this.maxRowNum = maxRowNum;
-    }
-
-    public JobConfig(
-            String type,
-            Integer step,
-            boolean useResult,
-            boolean useSession,
-            boolean useRemote,
-            Integer clusterId,
-            Integer clusterConfigurationId,
-            Integer jarId,
-            Integer taskId,
-            String jobName,
-            boolean useSqlFragment,
-            boolean useStatementSet,
-            boolean useBatchModel,
-            Integer checkpoint,
-            Integer parallelism,
-            Integer savePointStrategyValue,
-            String savePointPath,
-            Map<String, String> configJson,
-            boolean isJarTask) {
-        this.type = type;
-        this.step = step;
-        this.useResult = useResult;
-        this.useSession = useSession;
-        this.useRemote = useRemote;
-        this.clusterId = clusterId;
-        this.clusterConfigurationId = clusterConfigurationId;
-        this.jarId = jarId;
-        this.taskId = taskId;
-        this.jobName = jobName;
-        this.useSqlFragment = useSqlFragment;
-        this.useStatementSet = useStatementSet;
-        this.useBatchModel = useBatchModel;
-        this.checkpoint = checkpoint;
-        this.parallelism = parallelism;
-        this.savePointStrategy = SavePointStrategy.get(savePointStrategyValue);
-        this.savePointPath = savePointPath;
-        this.configJson = configJson;
-        this.isJarTask = isJarTask;
-    }
-
-    public ExecutorSetting getExecutorSetting() {
-        return new ExecutorSetting(
+    public ExecutorConfig getExecutorSetting() {
+        Map<String, String> config = new HashMap<>(32);
+        if (GatewayType.isDeployCluster(type) && gatewayConfig != null && gatewayConfig.getFlinkConfig() != null) {
+            config.putAll(gatewayConfig.getFlinkConfig().getConfiguration());
+        } else if (Asserts.isNotNull(configJson)) {
+            config.putAll(configJson);
+        }
+        return ExecutorConfig.build(
+                type,
+                address,
                 checkpoint,
                 parallelism,
-                useSqlFragment,
-                useStatementSet,
-                useBatchModel,
+                fragment,
+                statementSet,
+                batchModel,
                 savePointPath,
                 jobName,
-                configJson);
+                config,
+                variables);
     }
 
     public void buildGatewayConfig(FlinkClusterConfig config) {
+        FlinkConfig flinkConfig = config.getFlinkConfig();
+
+        // Prioritize loading custom Flink configuration content in the cluster configuration
+        for (CustomConfig customConfig : flinkConfig.getFlinkConfigList()) {
+            Assert.notNull(customConfig.getName(), "Custom flink config has null key");
+            Assert.notNull(customConfig.getValue(), "Custom flink config has null value");
+            flinkConfig.getConfiguration().put(customConfig.getName(), customConfig.getValue());
+        }
+
+        // Load job configuration content afterwords
+        flinkConfig.getConfiguration().putAll(getConfigJson());
+        flinkConfig.getConfiguration().put(CoreOptions.DEFAULT_PARALLELISM.key(), String.valueOf(parallelism));
+        flinkConfig.setJobName(getJobName());
+
         gatewayConfig = GatewayConfig.build(config);
         gatewayConfig.setTaskId(getTaskId());
-        gatewayConfig.getFlinkConfig().setJobName(getJobName());
-        gatewayConfig
-                .getFlinkConfig()
-                .getConfiguration()
-                .put(CoreOptions.DEFAULT_PARALLELISM.key(), String.valueOf(parallelism));
-        setUseRemote(false); // todo: remove
+        gatewayConfig.setType(GatewayType.get(getType()));
     }
 
-    public void addGatewayConfig(Map<String, Object> config) {
+    public void addGatewayConfig(Map<String, String> config) {
         if (Asserts.isNull(gatewayConfig)) {
             gatewayConfig = new GatewayConfig();
         }
-        for (Map.Entry<String, Object> entry : config.entrySet()) {
-            gatewayConfig.getFlinkConfig().getConfiguration().put(entry.getKey(), (String) entry.getValue());
+        for (Map.Entry<String, String> entry : config.entrySet()) {
+            gatewayConfig.getFlinkConfig().getConfiguration().put(entry.getKey(), entry.getValue());
         }
     }
 
+    public void addGatewayConfig(Configuration config) {
+        if (Asserts.isNull(gatewayConfig)) {
+            gatewayConfig = new GatewayConfig();
+        }
+        gatewayConfig.getFlinkConfig().getConfiguration().putAll(config.toMap());
+    }
+
     public boolean isUseRemote() {
-        return !GatewayType.LOCAL.equalsValue(type);
+        return useRemote || !GatewayType.LOCAL.equalsValue(type);
     }
 
     public void buildLocal() {
         type = GatewayType.LOCAL.getLongValue();
+    }
+
+    public static JobConfig buildPlanConfig() {
+        JobConfig jobConfig = new JobConfig();
+        jobConfig.setType(GatewayType.LOCAL.getLongValue());
+        return jobConfig;
     }
 }

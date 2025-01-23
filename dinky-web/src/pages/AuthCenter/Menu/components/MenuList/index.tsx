@@ -18,6 +18,7 @@
  */
 
 import RightContextMenu from '@/components/RightContextMenu';
+import { Authorized, AuthorizedObject, useAccess } from '@/hooks/useAccess';
 import MenuForm from '@/pages/AuthCenter/Menu/components/MenuForm';
 import { RIGHT_CONTEXT_MENU } from '@/pages/AuthCenter/Menu/components/MenuList/constants';
 import OpHelper from '@/pages/AuthCenter/Menu/components/MenuList/OpHelper';
@@ -27,6 +28,7 @@ import { API_CONSTANTS } from '@/services/endpoints';
 import { SysMenu } from '@/types/AuthCenter/data.d';
 import { InitMenuState } from '@/types/AuthCenter/init.d';
 import { MenuState } from '@/types/AuthCenter/state.d';
+import { PermissionConstants } from '@/types/Public/constants';
 import { l } from '@/utils/intl';
 import { PlusSquareTwoTone, ReloadOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
@@ -36,6 +38,7 @@ import React, { useEffect, useState } from 'react';
 
 const MenuList: React.FC = () => {
   const [menuState, setMenuState] = useState<MenuState>(InitMenuState);
+  const access = useAccess();
 
   const executeAndCallbackRefresh = async (callback: () => void) => {
     setMenuState((prevState) => ({ ...prevState, loading: true }));
@@ -49,7 +52,7 @@ const MenuList: React.FC = () => {
   const queryMenuData = async () => {
     executeAndCallbackRefresh(async () => {
       await queryDataByParams(API_CONSTANTS.MENU_LIST).then((res) =>
-        setMenuState((prevState) => ({ ...prevState, menuTreeData: res }))
+        setMenuState((prevState) => ({ ...prevState, menuTreeData: res as SysMenu[] }))
       );
     });
   };
@@ -113,6 +116,7 @@ const MenuList: React.FC = () => {
       editOpen: false,
       contextMenuOpen: false,
       isRootMenu: false,
+      isEditDisabled: false,
       sysMenuValue: {}
     }));
   };
@@ -140,6 +144,10 @@ const MenuList: React.FC = () => {
   const handleRightClick = (info: any) => {
     // 获取右键点击的节点信息
     const { node, event } = info;
+    // 判断右键的位置是否超出屏幕 , 如果超出屏幕则设置为屏幕的最大值 往上偏移 125 (需要根据具体的右键菜单数量合理设置)
+    if (event.clientY + 150 > window.innerHeight) {
+      event.clientY = window.innerHeight - 125;
+    }
     setMenuState((prevState) => ({
       ...prevState,
       contextMenuOpen: true,
@@ -147,8 +155,10 @@ const MenuList: React.FC = () => {
       clickNode: { ...prevState.clickNode, rightClickedNode: node },
       contextMenuPosition: {
         ...prevState.contextMenuPosition,
-        top: event.clientY + 20,
-        left: event.clientX + 20
+        top: event.clientY + 5,
+        left: event.clientX + 10,
+        screenX: event.screenX,
+        screenY: event.screenY
       }
     }));
   };
@@ -174,24 +184,32 @@ const MenuList: React.FC = () => {
     const { editOpen, sysMenuValue, isEditDisabled } = menuState;
     return (
       <>
-        {editOpen && sysMenuValue && isEditDisabled && (
-          <Button
-            size={'small'}
-            type={'primary'}
-            onClick={() => setMenuState((prevState) => ({ ...prevState, isEditDisabled: false }))}
-          >
-            {l('button.edit')}
-          </Button>
-        )}
-        {editOpen && sysMenuValue && !isEditDisabled && (
-          <Button
-            size={'small'}
-            type={'dashed'}
-            onClick={() => setMenuState((prevState) => ({ ...prevState, isEditDisabled: true }))}
-          >
-            {l('button.cancel')}
-          </Button>
-        )}
+        <Authorized key={`edit_auth`} path={PermissionConstants.AUTH_MENU_EDIT}>
+          <>
+            {editOpen && sysMenuValue && isEditDisabled && (
+              <Button
+                size={'small'}
+                type={'primary'}
+                onClick={() =>
+                  setMenuState((prevState) => ({ ...prevState, isEditDisabled: false }))
+                }
+              >
+                {l('button.edit')}
+              </Button>
+            )}
+          </>
+        </Authorized>
+        <>
+          {editOpen && sysMenuValue && !isEditDisabled && (
+            <Button
+              size={'small'}
+              type={'dashed'}
+              onClick={() => setMenuState((prevState) => ({ ...prevState, isEditDisabled: true }))}
+            >
+              {l('button.cancel')}
+            </Button>
+          )}
+        </>
       </>
     );
   };
@@ -246,8 +264,9 @@ const MenuList: React.FC = () => {
             selectedKeys={selectedKeys}
             isRootMenu={isRootMenu}
             treeData={menuTreeData}
+            disabled={isEditDisabled}
             values={{}}
-            open={addedOpen}
+            open={addedOpen || isRootMenu}
             onCancel={handleCancel}
             onSubmit={(value: Partial<SysMenu>) => handleAddOrUpdateSubmit(value)}
           />
@@ -262,8 +281,9 @@ const MenuList: React.FC = () => {
   const handleCreateRoot = () => {
     setMenuState((prevState) => ({
       ...prevState,
-      addedMenuOpen: true,
-      editMenuOpen: false,
+      addedOpen: true,
+      editOpen: false,
+      isEditDisabled: false,
       contextMenuOpen: false,
       isRootMenu: true,
       sysMenuValue: {}
@@ -273,24 +293,28 @@ const MenuList: React.FC = () => {
   const renderLeftExtra = () => {
     return (
       <Space>
-        <Button
-          size={'small'}
-          key={'added-menu'}
-          icon={<PlusSquareTwoTone />}
-          type={'primary'}
-          onClick={() => handleCreateRoot()}
-        >
-          {l('right.menu.createRoot')}
-        </Button>
-        <Button
-          size={'small'}
-          key={'refresh-menu'}
-          icon={<ReloadOutlined />}
-          type={'primary'}
-          onClick={() => queryMenuData()}
-        >
-          {l('button.refresh')}
-        </Button>
+        <Authorized key={`added_auth`} path={PermissionConstants.AUTH_MENU_ADD_ROOT}>
+          <Button
+            size={'small'}
+            key={'added-menu'}
+            icon={<PlusSquareTwoTone />}
+            type={'primary'}
+            onClick={() => handleCreateRoot()}
+          >
+            {l('right.menu.createRoot')}
+          </Button>
+        </Authorized>
+        <Authorized key={`refresh_auth`} path={PermissionConstants.AUTH_MENU_REFRESH}>
+          <Button
+            size={'small'}
+            key={'refresh-menu'}
+            icon={<ReloadOutlined />}
+            type={'primary'}
+            onClick={() => queryMenuData()}
+          >
+            {l('button.refresh')}
+          </Button>
+        </Authorized>
       </Space>
     );
   };
@@ -302,10 +326,10 @@ const MenuList: React.FC = () => {
         {sysMenuValue?.id && editOpen
           ? l('menu.edit')
           : !sysMenuValue?.id && addedOpen && !isRootMenu
-          ? l('right.menu.addSub')
-          : !sysMenuValue?.id && addedOpen && isRootMenu
-          ? l('right.menu.createRoot')
-          : ''}
+            ? l('right.menu.addSub')
+            : !sysMenuValue?.id && addedOpen && isRootMenu
+              ? l('right.menu.createRoot')
+              : ''}
       </>
     );
   };
@@ -321,7 +345,7 @@ const MenuList: React.FC = () => {
           title={l('menu.management')}
           ghost
           hoverable
-          colSpan={'30%'}
+          colSpan={'40%'}
           className={'siderTree schemaTree'}
         >
           <MenuTree
@@ -348,7 +372,9 @@ const MenuList: React.FC = () => {
         contextMenuPosition={menuState.contextMenuPosition}
         open={menuState.contextMenuOpen}
         openChange={() => setMenuState((prevState) => ({ ...prevState, contextMenuOpen: false }))}
-        items={RIGHT_CONTEXT_MENU(menuState.clickNode.rightClickedNode?.type === 'F')}
+        items={RIGHT_CONTEXT_MENU(menuState.clickNode.rightClickedNode?.type === 'F').filter(
+          (menu) => !!!menu.path || !!AuthorizedObject({ path: menu.path, children: menu, access })
+        )}
         onClick={handleMenuClick}
       />
     </>

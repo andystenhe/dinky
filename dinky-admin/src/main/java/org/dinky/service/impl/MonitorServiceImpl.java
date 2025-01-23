@@ -19,34 +19,40 @@
 
 package org.dinky.service.impl;
 
-import org.dinky.configure.MetricConfig;
+import static org.dinky.data.constant.MonitorTableConstant.HEART_TIME;
+import static org.dinky.data.constant.MonitorTableConstant.JOB_ID;
+
+import org.dinky.data.MetricsLayoutVo;
+import org.dinky.data.constant.MonitorTableConstant;
 import org.dinky.data.dto.MetricsLayoutDTO;
-import org.dinky.data.enums.MetricsType;
-import org.dinky.data.metrics.Jvm;
+import org.dinky.data.exception.DinkyException;
 import org.dinky.data.model.Metrics;
+import org.dinky.data.model.job.JobInstance;
+import org.dinky.data.vo.CascaderVO;
 import org.dinky.data.vo.MetricsVO;
 import org.dinky.mapper.MetricsMapper;
-import org.dinky.process.exception.DinkyException;
+import org.dinky.service.JobInstanceService;
 import org.dinky.service.MonitorService;
-import org.dinky.utils.PaimonUtil;
+import org.dinky.utils.JsonUtils;
+import org.dinky.utils.SqliteUtil;
 
-import org.apache.http.util.TextUtils;
-import org.apache.paimon.data.BinaryString;
-import org.apache.paimon.data.Timestamp;
-import org.apache.paimon.predicate.Predicate;
-import org.apache.paimon.predicate.PredicateBuilder;
-
-import java.io.IOException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.text.MessageFormat;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.annotation.PostConstruct;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,93 +64,78 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.lang.Dict;
 import cn.hutool.core.lang.Opt;
-import cn.hutool.core.thread.ThreadUtil;
-import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
+import cn.hutool.core.lang.Tuple;
+import cn.hutool.core.map.MapUtil;
+import cn.hutool.extra.spring.SpringUtil;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class MonitorServiceImpl extends ServiceImpl<MetricsMapper, Metrics> implements MonitorService {
+
+    @PostConstruct
+    private void init() {
+        String sql = String.format(
+                "%s BIGINT, %s TEXT, %s TEXT, %s INTEGER",
+                JOB_ID, MonitorTableConstant.VALUE, MonitorTableConstant.HEART_TIME, MonitorTableConstant.DATE);
+        SqliteUtil.INSTANCE.createTable(MonitorTableConstant.DINKY_METRICS, sql);
+    }
+
     private final Executor scheduleRefreshMonitorDataExecutor;
+    private final JobInstanceService jobInstanceService;
 
     @Override
-    public List<MetricsVO> getData(Date startTime, Date endTime, List<String> jobIds) {
+    public List<MetricsVO> getData(Date startTime, Date endTime, List<String> models) {
+        if (models.isEmpty()) {
+            throw new DinkyException("Please provide at least one monitoring ID");
+        }
         endTime = Opt.ofNullable(endTime).orElse(DateUtil.date());
-        Timestamp startTS = Timestamp.fromLocalDateTime(DateUtil.toLocalDateTime(startTime));
-        Timestamp endTS = Timestamp.fromLocalDateTime(DateUtil.toLocalDateTime(endTime));
-
         if (endTime.compareTo(startTime) < 1) {
             throw new DinkyException("The end date must be greater than the start date!");
         }
 
-        Function<PredicateBuilder, List<Predicate>> filter = p -> {
-            Predicate greaterOrEqual = p.greaterOrEqual(0, startTS);
-            Predicate lessOrEqual = p.lessOrEqual(0, endTS);
-            Predicate local =
-                    p.in(1, jobIds.stream().map(BinaryString::fromString).collect(Collectors.toList()));
-            return CollUtil.newArrayList(local, greaterOrEqual, lessOrEqual);
-        };
-        List<MetricsVO> metricsVOList =
-                PaimonUtil.batchReadTable(PaimonUtil.METRICS_IDENTIFIER, MetricsVO.class, filter);
-        return metricsVOList.stream()
-                .filter(x -> x.getHeartTime().isAfter(startTS.toLocalDateTime()))
-                .filter(x -> x.getHeartTime().isBefore(endTS.toLocalDateTime()))
-                .peek(vo -> vo.setContent(new JSONObject(vo.getContent().toString())))
-                .collect(Collectors.toList());
+        String condition = getUtcCondition(startTime, endTime);
+        List<MetricsVO> metricsVOList = new ArrayList<>();
+        try (SqliteUtil.PreparedResultSet ps =
+                SqliteUtil.INSTANCE.read(MonitorTableConstant.DINKY_METRICS, condition)) {
+            ResultSet read = ps.getRs();
+            while (read.next()) {
+                MetricsVO metricsVO = new MetricsVO();
+                metricsVO.setModel(read.getString(MonitorTableConstant.JOB_ID));
+                metricsVO.setContent(read.getString(MonitorTableConstant.VALUE));
+                metricsVO.setHeartTime(
+                        DateUtil.parse(read.getString(HEART_TIME)).toLocalDateTime());
+                metricsVO.setDate(read.getString(MonitorTableConstant.DATE));
+                metricsVOList.add(metricsVO);
+            }
+
+        } catch (SQLException e) {
+            throw new DinkyException("Failed to get data from the database", e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return metricsVOList;
+    }
+
+    public static String getUtcCondition(Date startTime, Date endTime) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS");
+        LocalDateTime startLdt = LocalDateTime.ofInstant(startTime.toInstant(), ZoneId.systemDefault());
+        LocalDateTime endLdt = LocalDateTime.ofInstant(endTime.toInstant(), ZoneId.systemDefault());
+        return MessageFormat.format(
+                "''{0}'' <= {2} AND {2} <= ''{1}''", startLdt.format(formatter), endLdt.format(formatter), HEART_TIME);
     }
 
     @Override
-    public SseEmitter sendLatestData(SseEmitter sseEmitter, Date lastDate, String layoutName) {
-        Queue<MetricsVO> metricsQueue = MetricConfig.getMetricsQueue();
-        scheduleRefreshMonitorDataExecutor.execute(() -> {
-            try {
-                LocalDateTime maxDate = DateUtil.toLocalDateTime(lastDate);
-                while (true) {
-                    if (CollUtil.isEmpty(metricsQueue)) {
-                        continue;
-                    }
-                    for (MetricsVO metrics : metricsQueue) {
-                        if (metrics.getHeartTime().isAfter(maxDate)) {
-                            // 过滤非layoutName指定的Flink监控数据，防止数据过多卡顿
-                            if (!TextUtils.isEmpty(layoutName)
-                                    && !metrics.getModel().equals(MetricsType.LOCAL.getType())
-                                    && !metrics.flinkContent().getLayoutNames().contains(layoutName)) {
-                                continue;
-                            }
-                            sseEmitter.send(metrics);
-                            maxDate = metrics.getHeartTime();
-                        }
-                    }
-                    ThreadUtil.sleep(800);
-                }
-            } catch (IOException e) {
-                sseEmitter.complete();
-            } catch (Exception e) {
-                e.printStackTrace();
-                sseEmitter.complete();
-            }
-        });
-        return sseEmitter;
-    }
-
-    @Override
-    public SseEmitter sendJvmInfo(SseEmitter sseEmitter) {
-        scheduleRefreshMonitorDataExecutor.execute(() -> {
-            try {
-                while (true) {
-                    sseEmitter.send(JSONUtil.toJsonStr(Jvm.of()));
-                    ThreadUtil.sleep(10000);
-                }
-            } catch (IOException e) {
-                sseEmitter.complete();
-            } catch (Exception e) {
-                e.printStackTrace();
-                sseEmitter.complete();
-            }
-        });
-        return sseEmitter;
+    public SseEmitter sendJvmInfo() {
+        //        while (true) {
+        //            sendTopic(sessionKey, Jvm.of());
+        //            ThreadUtil.sleep(10000);
+        //        }
+        //        return sseEmitter;
+        // todo ws修改
+        return null;
     }
 
     @Override
@@ -156,18 +147,30 @@ public class MonitorServiceImpl extends ServiceImpl<MetricsMapper, Metrics> impl
         if (CollUtil.isEmpty(metricsList)) {
             return;
         }
-        saveBatch(BeanUtil.copyToList(metricsList, Metrics.class));
+        List<MetricsLayoutDTO> list =
+                metricsList.stream().peek(m -> m.setLayoutName(layout)).collect(Collectors.toList());
+        saveBatch(BeanUtil.copyToList(list, Metrics.class));
     }
 
     @Override
-    public Map<String, List<Metrics>> getMetricsLayout() {
-        List<Metrics> list = list();
-        Map<String, List<Metrics>> result = new HashMap<>();
-        list.forEach(x -> {
-            String layoutName = x.getLayoutName();
-            result.computeIfAbsent(layoutName, (k) -> new ArrayList<>());
-            result.get(layoutName).add(x);
-        });
+    public List<MetricsLayoutVo> getMetricsLayout() {
+        Map<String, List<Metrics>> collect = list().stream().collect(Collectors.groupingBy(Metrics::getLayoutName));
+
+        List<MetricsLayoutVo> result = new ArrayList<>();
+        for (Map.Entry<String, List<Metrics>> entry : collect.entrySet()) {
+            // It is derived from a group, so the value must have a value,
+            // and a layout name only corresponds to a task ID, so only the first one can be taken
+            Integer taskId = entry.getValue().get(0).getTaskId();
+            JobInstance jobInstance = jobInstanceService.getJobInstanceByTaskId(taskId);
+            MetricsLayoutVo metricsLayoutVo = MetricsLayoutVo.builder()
+                    .layoutName(entry.getKey())
+                    .metrics(entry.getValue())
+                    .flinkJobId(jobInstance == null ? null : jobInstance.getJid())
+                    .taskId(taskId)
+                    .showInDashboard(true)
+                    .build();
+            result.add(metricsLayoutVo);
+        }
         return result;
     }
 
@@ -176,5 +179,114 @@ public class MonitorServiceImpl extends ServiceImpl<MetricsMapper, Metrics> impl
         QueryWrapper<Metrics> wrapper = new QueryWrapper<>();
         wrapper.lambda().eq(Metrics::getLayoutName, layoutName);
         return this.baseMapper.selectList(wrapper);
+    }
+
+    @Override
+    public List<Metrics> getMetricsLayoutByTaskId(Integer taskId) {
+        QueryWrapper<Metrics> wrapper = new QueryWrapper<>();
+        wrapper.lambda().eq(Metrics::getTaskId, taskId);
+        return this.baseMapper.selectList(wrapper);
+    }
+
+    /**
+     * Delete the metrics layout.
+     *
+     * @param taskId the task id
+     * @return if the delete is successful.
+     */
+    @Override
+    public boolean deleteMetricsLayout(Integer taskId) {
+        List<Metrics> metricsList = getMetricsLayoutByTaskId(taskId);
+        int deleted = this.baseMapper.deleteBatchIds(
+                metricsList.stream().map(Metrics::getId).collect(Collectors.toList()));
+        return deleted > 0;
+    }
+
+    /**
+     * @param startTime
+     * @param endTime
+     * @param flinkMetricsIdList
+     * @return
+     */
+    @Override
+    public Map<Integer, List<Dict>> getFlinkDataByDashboard(Long startTime, Long endTime, String flinkMetricsIdList) {
+        Map<Integer, String> cacheMap = new HashMap<>();
+        List<Metrics> metrics = listByIds(Arrays.asList(flinkMetricsIdList.split(",")));
+        metrics.forEach(x -> {
+            String jid = cacheMap.computeIfAbsent(x.getTaskId(), k -> SpringUtil.getBean(JobInstanceService.class)
+                    .getJobInstanceByTaskId(k)
+                    .getJid());
+            x.setJobId(jid);
+        });
+
+        List<String> flinkJobIdList =
+                metrics.stream().map(Metrics::getJobId).distinct().collect(Collectors.toList());
+
+        Map<String, Map<String, List<Tuple>>> map = metrics.stream()
+                .collect(Collectors.groupingBy(
+                        Metrics::getJobId,
+                        Collectors.toMap(
+                                Metrics::getVertices,
+                                x -> Collections.singletonList(new Tuple(x.getMetrics(), x.getId())),
+                                CollUtil::unionAll)));
+
+        Map<Integer, List<Dict>> resultData = new HashMap<>();
+        List<MetricsVO> data = getData(
+                DateUtil.date(startTime),
+                DateUtil.date(Opt.ofNullable(endTime).orElse(DateUtil.date().getTime())),
+                flinkJobIdList);
+        data.forEach(x -> {
+            Map<String, List<Tuple>> tupleMap = map.get(x.getModel());
+            if (tupleMap == null) {
+                return;
+            }
+            tupleMap.keySet().forEach(y -> {
+                Map<String, String> jsonObject = JsonUtils.toMap(x.getContent().toString(), String.class, Map.class)
+                        .get(y);
+                List<Tuple> tupleList = tupleMap.get(y);
+                for (Tuple tuple : tupleList) {
+                    String metricsName = tuple.get(0);
+                    Integer d = MapUtil.getInt(jsonObject, metricsName);
+                    Dict dict = Dict.create().set("time", x.getHeartTime()).set(MonitorTableConstant.VALUE, d);
+                    Integer id = tuple.get(1);
+                    resultData.computeIfAbsent(id, k -> new ArrayList<>()).add(dict);
+                }
+            });
+        });
+        return resultData;
+    }
+
+    /**
+     * Get the metrics layout by cascader.
+     *
+     * @return the list of cascader vo
+     */
+    @Override
+    public List<CascaderVO> getMetricsLayoutByCascader() {
+        return getMetricsLayout().stream()
+                .map(x -> {
+                    CascaderVO cascaderVO = new CascaderVO();
+                    cascaderVO.setLabel(x.getLayoutName());
+                    cascaderVO.setValue(x.getLayoutName());
+                    cascaderVO.setChildren(new ArrayList<>());
+
+                    List<List<Metrics>> vertices = CollUtil.groupByField(x.getMetrics(), "vertices");
+                    vertices.forEach(y -> {
+                        CascaderVO cascader1 = new CascaderVO();
+                        cascader1.setLabel(y.get(0).getVertices());
+                        cascader1.setValue(y.get(0).getVertices());
+                        cascader1.setChildren(new ArrayList<>());
+
+                        cascaderVO.getChildren().add(cascader1);
+                        y.forEach(z -> {
+                            CascaderVO cascader2 = new CascaderVO();
+                            cascader2.setLabel(z.getMetrics());
+                            cascader2.setValue(z.getId().toString());
+                            cascader1.getChildren().add(cascader2);
+                        });
+                    });
+                    return cascaderVO;
+                })
+                .collect(Collectors.toList());
     }
 }

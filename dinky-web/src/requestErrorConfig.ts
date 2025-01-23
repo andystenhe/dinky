@@ -1,42 +1,73 @@
-﻿/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+/*
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
-import { API_CONSTANTS } from '@/services/endpoints';
+import { redirectToLogin } from '@/pages/Other/Login/function';
+import { ENABLE_MODEL_TIP } from '@/services/constants';
+import { getValueFromLocalStorage } from '@/utils/function';
 import { l } from '@/utils/intl';
-import { ErrorNotification } from '@/utils/messages';
-import { history } from '@@/core/history';
+import { ErrorNotification, WarningNotification } from '@/utils/messages';
 import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
 
-// 错误处理方案： 错误类型
+// Error handling scheme: Error type
 enum ErrorCode {
-  'app.response.sucess' = 0,
-  'app.response.error' = 1,
-  'app.response.exception' = 5,
-  'app.response.notlogin' = 401
+  SUCCESS = 0,
+  ERROR = 1,
+  EXCEPTION = 5,
+  PARAMS_ERROR = 6,
+  AUTHORIZE_ERROR = 7,
+  SERVER_ERROR = 504,
+  UNAUTHORIZED = 401
 }
 
-// 与后端约定的响应数据格式
+// Response data format agreed upon with the backend
 interface ResponseStructure {
   success: boolean;
-  datas?: boolean;
+  data?: any;
   code: number;
   msg: string;
 }
+
+const handleBizError = (result: ResponseStructure) => {
+  const { msg, code, data } = result;
+
+  switch (code) {
+    case ErrorCode.SUCCESS:
+      //don't deal with it, just be happy
+      break;
+    case ErrorCode.ERROR:
+      WarningNotification(msg, l('app.response.error'));
+      break;
+    case ErrorCode.EXCEPTION:
+      const valueFromLocalStorage = getValueFromLocalStorage(ENABLE_MODEL_TIP);
+      if (valueFromLocalStorage === 'true') {
+        ErrorNotification(data, l('app.response.exception'));
+      }
+      break;
+    case ErrorCode.PARAMS_ERROR:
+      ErrorNotification(msg, l('app.response.error'));
+      break;
+    case ErrorCode.AUTHORIZE_ERROR:
+      ErrorNotification(msg, l('app.response.notlogin'));
+      break;
+  }
+};
 
 /**
  * @name 错误处理
@@ -44,61 +75,70 @@ interface ResponseStructure {
  * @doc https://umijs.org/docs/max/request#配置
  */
 export const errorConfig: RequestConfig = {
-  // 错误处理： umi@3 的错误处理方案。
+  // Error handling: umi@3 Error handling plan for.
   errorConfig: {
-    // 错误抛出
+    // Error thrown
     errorThrower: (res: ResponseStructure) => {
-      const { success, datas, msg, code } = res as ResponseStructure;
+      const { success, data, msg, code } = res as ResponseStructure;
       if (!success) {
         const error: any = new Error(msg);
         error.name = 'BizError';
-        error.info = { msg, code, datas };
-        throw error; // 抛出自制的错误
+        error.info = { msg, code, data };
+        throw error; // Throwing self-made errors
       }
     },
-    // 错误接收及处理
+    // Error reception and handling
     errorHandler: (error: any, opts: any) => {
       if (opts?.skipErrorHandler) throw error;
-      // 我们的 errorThrower 抛出的错误。
+
+      function processNotification(error: any, isEnableTips: string = 'false') {
+        if (getValueFromLocalStorage(ENABLE_MODEL_TIP) == isEnableTips) {
+          ErrorNotification(error.message, error.code);
+        }
+      }
+
+      //The error thrown by our errorThrower.
       if (error.name === 'BizError') {
         const errorInfo: ResponseStructure = error.info;
         if (errorInfo) {
-          const { msg, code } = errorInfo;
-          ErrorNotification(msg, l(ErrorCode[code], 'Error'));
+          handleBizError(errorInfo);
         }
       } else if (error.response) {
-        // 请求成功发出且服务器也响应了状态码，但状态代码超出了 2xx 的范围
-        //认证错误，跳转登录页面
-        if (error.response.status === 401) {
-          history.push(API_CONSTANTS.LOGIN_PATH);
+        //The request was successfully sent and the server also responded with a status code, but the status code exceeded the range of 2xx
+        //Authentication error, redirect to login page
+        if (error.response.status === ErrorCode.UNAUTHORIZED) {
+          redirectToLogin(error.message);
+        } else if (error.response.status === ErrorCode.SERVER_ERROR) {
+          processNotification(error);
+          //Note: when the server is not available or the network is disconnected, redirect to login page
+          redirectToLogin(error.message);
         } else {
-          //预留，处理其他code逻辑，目前未定义的code统一发送错误通知
-          ErrorNotification(error.message, error.code);
+          processNotification(error, 'true');
         }
       } else if (error.request) {
-        // 请求已经成功发起，但没有收到响应
+        //The request has been successfully initiated, but no response has been received
         ErrorNotification(error.toString(), l('app.response.noresponse'));
       } else {
-        // 发送请求时出了点问题
+        // There was a problem sending the request
         ErrorNotification(error.toString(), l('app.request.failed'));
       }
     }
   },
 
-  // 请求拦截器
+  // request interceptor
   requestInterceptors: [
     (config: RequestOptions) => {
-      // 拦截请求配置，进行个性化处理。
+      // Intercept request configuration for personalized processing.
       const url = config?.url;
       return { ...config, url };
     }
   ],
 
-  // 响应拦截器
+  // Response interceptor
   responseInterceptors: [
     (response) => {
-      // 拦截响应数据，进行个性化处理
-      // 不再需要异步处理读取返回体内容，可直接在data中读出，部分字段可在 config 中找到
+      //Intercept response data for personalized processing
+      //No longer requires asynchronous processing to read the content of the return body, it can be directly read from data, and some fields can be found in config
       const { data = {} as any, config } = response;
       return response;
     }

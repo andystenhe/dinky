@@ -1,28 +1,29 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 import { FormContextValue } from '@/components/Context/FormContext';
 import DataSourceProForm from '@/pages/RegCenter/DataSource/components/DataSourceModal/DataSourceProForm';
-import { MODAL_FORM_OPTIONS } from '@/services/constants';
 import { DataSources } from '@/types/RegCenter/data';
 import { l } from '@/utils/intl';
 import { ModalForm } from '@ant-design/pro-components';
 import { Button, Form } from 'antd';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 type DataSourceModalProps = {
   visible: boolean;
@@ -39,6 +40,8 @@ const DataSourceModal: React.FC<DataSourceModalProps> = (props) => {
   const [flinkTemplateValue, setFlinkTemplateValue] = React.useState<string>(
     values.flinkTemplate || ''
   );
+  const [dbType, setDbType] = useState<string>(values.type ?? 'MySQL');
+  const [excludeFormItem, setExcludeFormItem] = useState<boolean>(false);
 
   /**
    * init form
@@ -58,8 +61,12 @@ const DataSourceModal: React.FC<DataSourceModalProps> = (props) => {
    * when modalVisible or values changed, set form values
    */
   useEffect(() => {
-    form.setFieldsValue(values);
-  }, [visible, values, form]);
+    if (!visible) {
+      form.resetFields();
+    } else {
+      form.setFieldsValue(values);
+    }
+  }, [visible, values]);
 
   /**
    * handle cancel
@@ -102,7 +109,7 @@ const DataSourceModal: React.FC<DataSourceModalProps> = (props) => {
   const submitForm = async () => {
     const fieldsValue = await form.validateFields();
     setSubmitting(true);
-    await onSubmit({ ...values, ...fieldsValue });
+    onSubmit({ ...values, ...fieldsValue });
     handleCancel();
   };
 
@@ -117,10 +124,26 @@ const DataSourceModal: React.FC<DataSourceModalProps> = (props) => {
       <Button key={'test'} loading={submitting} type='primary' onClick={handleTestConnect}>
         {l('button.test')}
       </Button>,
-      <Button key={'finish'} loading={submitting} type='primary' onClick={() => submitForm()}>
+      <Button
+        key={'finish'}
+        loading={submitting}
+        type='primary'
+        htmlType={'submit'}
+        autoFocus
+        onClick={() => submitForm()}
+      >
         {l('button.finish')}
       </Button>
     ];
+  };
+
+  const handleTypeChange = (value: any) => {
+    if (value.type) setDbType(value.type);
+    if (value.type === 'Hive' || value.type === 'Presto') {
+      setExcludeFormItem(true);
+    } else {
+      setExcludeFormItem(false);
+    }
   };
 
   /**
@@ -129,11 +152,12 @@ const DataSourceModal: React.FC<DataSourceModalProps> = (props) => {
   return (
     <>
       <ModalForm<DataSources.DataSource>
-        {...MODAL_FORM_OPTIONS}
+        width={'50%'}
         open={visible}
-        modalProps={{ onCancel: handleCancel }}
+        modalProps={{ onCancel: handleCancel, maskClosable: false }}
         title={values.id ? l('rc.ds.modify') : l('rc.ds.create')}
         form={form}
+        onValuesChange={handleTypeChange}
         submitter={{ render: () => [...renderFooter()] }}
         initialValues={{
           ...values,
@@ -143,6 +167,8 @@ const DataSourceModal: React.FC<DataSourceModalProps> = (props) => {
       >
         <DataSourceProForm
           values={values}
+          excludeFormItem={excludeFormItem}
+          dbType={dbType}
           form={form}
           flinkConfigChange={handleFlinkConfigValueChange}
           flinkTemplateChange={handleFlinkTemplateValueChange}

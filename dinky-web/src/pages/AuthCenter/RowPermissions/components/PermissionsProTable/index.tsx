@@ -1,25 +1,26 @@
 /*
  *
- *   Licensed to the Apache Software Foundation (ASF) under one or more
- *   contributor license agreements.  See the NOTICE file distributed with
- *   this work for additional information regarding copyright ownership.
- *   The ASF licenses this file to You under the Apache License, Version 2.0
- *   (the "License"); you may not use this file except in compliance with
- *   the License.  You may obtain a copy of the License at
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  *
  */
 
 import { CreateBtn } from '@/components/CallBackButton/CreateBtn';
 import { EditBtn } from '@/components/CallBackButton/EditBtn';
 import { PopconfirmDeleteBtn } from '@/components/CallBackButton/PopconfirmDeleteBtn';
+import { Authorized } from '@/hooks/useAccess';
 import { PermissionsModal } from '@/pages/AuthCenter/RowPermissions/components/PermissionsModal';
 import { queryList } from '@/services/api';
 import { handleAddOrUpdate, handleRemoveById } from '@/services/BusinessCrud';
@@ -28,6 +29,7 @@ import { API_CONSTANTS } from '@/services/endpoints';
 import { RowPermissions } from '@/types/AuthCenter/data.d';
 import { InitRowPermissionsState } from '@/types/AuthCenter/init.d';
 import { RowPermissionsState } from '@/types/AuthCenter/state.d';
+import { PermissionConstants } from '@/types/Public/constants';
 import { getTenantByLocalStorage } from '@/utils/function';
 import { l } from '@/utils/intl';
 import ProTable, { ActionType, ProColumns } from '@ant-design/pro-table';
@@ -82,7 +84,7 @@ const PermissionsProTable: React.FC = () => {
     setRowPermissions((prevState) => ({
       ...prevState,
       value: record,
-      editOpen: false
+      editOpen: true
     }));
   };
 
@@ -140,14 +142,25 @@ const PermissionsProTable: React.FC = () => {
       title: l('global.table.operate'),
       dataIndex: 'option',
       valueType: 'option',
-      width: '10vh',
+      width: '10%',
+      fixed: 'right',
       render: (_: any, record: RowPermissions) => [
-        <EditBtn key={`${record.id}_edit`} onClick={() => handleEditVisible(record)} />,
-        <PopconfirmDeleteBtn
-          key={`${record.id}_delete`}
-          onClick={() => handleDeleteSubmit(record.id)}
-          description={l('rowPermissions.deleteConfirm')}
-        />
+        <Authorized
+          key={`${record.id}_edit_auth`}
+          path={PermissionConstants.AUTH_ROW_PERMISSIONS_EDIT}
+        >
+          <EditBtn key={`${record.id}_edit`} onClick={() => handleEditVisible(record)} />
+        </Authorized>,
+        <Authorized
+          key={`${record.id}_delete_auth`}
+          path={PermissionConstants.AUTH_ROW_PERMISSIONS_DELETE}
+        >
+          <PopconfirmDeleteBtn
+            key={`${record.id}_delete`}
+            onClick={() => handleDeleteSubmit(record.id)}
+            description={l('rowPermissions.deleteConfirm')}
+          />
+        </Authorized>
       ]
     }
   ];
@@ -163,10 +176,12 @@ const PermissionsProTable: React.FC = () => {
         actionRef={actionRef}
         loading={rowPermissions.loading}
         toolBarRender={() => [
-          <CreateBtn
-            key='createBtn'
-            onClick={() => setRowPermissions((prevState) => ({ ...prevState, addedOpen: true }))}
-          />
+          <Authorized key={`createBtn_auth`} path={PermissionConstants.AUTH_ROW_PERMISSIONS_ADD}>
+            <CreateBtn
+              key='createBtn'
+              onClick={() => setRowPermissions((prevState) => ({ ...prevState, addedOpen: true }))}
+            />
+          </Authorized>
         ]}
         request={(params: any, sorter: any, filter: any) =>
           queryList(API_CONSTANTS.ROW_PERMISSIONS, {

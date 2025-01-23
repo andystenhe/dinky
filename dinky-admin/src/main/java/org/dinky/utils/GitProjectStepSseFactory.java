@@ -20,9 +20,9 @@
 package org.dinky.utils;
 
 import org.dinky.context.GitBuildContextHolder;
+import org.dinky.data.exception.DinkyException;
 import org.dinky.data.model.GitProject;
 import org.dinky.data.result.StepResult;
-import org.dinky.process.exception.DinkyException;
 import org.dinky.sse.DoneStepSse;
 import org.dinky.sse.StepSse;
 import org.dinky.sse.git.AnalysisUdfClassStepSse;
@@ -63,7 +63,7 @@ public final class GitProjectStepSseFactory {
         List<SseEmitter> emitterList = new ArrayList<>();
 
         StepSse headStepSse = getHeadStepPlan(gitProject.getCodeType(), sleep, emitterList, params);
-        cachedThreadPool.execute(headStepSse::main);
+        cachedThreadPool.execute(headStepSse::run);
         gitProject.setBuildStep(1);
         gitProject.setBuildState(1);
         gitProject.setLastBuild(DateUtil.date());

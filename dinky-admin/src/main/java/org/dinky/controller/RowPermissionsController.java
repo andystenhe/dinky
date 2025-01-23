@@ -19,10 +19,11 @@
 
 package org.dinky.controller;
 
-import org.dinky.data.annotation.Log;
+import org.dinky.data.annotations.Log;
+import org.dinky.data.constant.PermissionConstants;
 import org.dinky.data.enums.BusinessType;
 import org.dinky.data.enums.Status;
-import org.dinky.data.model.RowPermissions;
+import org.dinky.data.model.rbac.RowPermissions;
 import org.dinky.data.result.ProTableResult;
 import org.dinky.data.result.Result;
 import org.dinky.service.RowPermissionsService;
@@ -38,6 +39,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiOperation;
@@ -47,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 @Api(tags = "RowPermissions Controller")
 @RestController
 @RequestMapping("/api/rowPermissions")
+@SaCheckLogin
 public class RowPermissionsController {
 
     @Autowired
@@ -68,6 +73,9 @@ public class RowPermissionsController {
             paramType = "body",
             required = true,
             dataTypeClass = RowPermissions.class)
+    @SaCheckPermission(
+            value = {PermissionConstants.AUTH_ROW_PERMISSIONS_ADD, PermissionConstants.AUTH_ROW_PERMISSIONS_EDIT},
+            mode = SaMode.OR)
     public Result saveOrUpdateRowPermissions(@RequestBody RowPermissions roleSelectPermissions) {
         if (roleSelectPermissionsService.saveOrUpdate(roleSelectPermissions)) {
             return Result.succeed(Status.SAVE_SUCCESS);
@@ -92,7 +100,8 @@ public class RowPermissionsController {
             paramType = "query",
             required = true,
             dataTypeClass = Integer.class)
-    public Result delete(@RequestParam("id") Integer id) {
+    @SaCheckPermission(PermissionConstants.AUTH_ROW_PERMISSIONS_DELETE)
+    public Result deleteRowPermissions(@RequestParam("id") Integer id) {
 
         if (roleSelectPermissionsService.removeById(id)) {
             return Result.succeed(Status.DELETE_SUCCESS);

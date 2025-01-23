@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.dinky</groupId>
         <artifactId>dinky</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>${revision}</version>
     </parent>
 
     <artifactId>dinky-web</artifactId>
@@ -31,6 +31,15 @@
 
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
+        <resources>
+            <resource>
+                <filtering>true</filtering>
+                <directory>/src/services/</directory>
+                <includes>
+                    <include>constants.tsx</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <!-- 调用npm命令插件 -->
             <plugin>
@@ -38,8 +47,8 @@
                 <artifactId>frontend-maven-plugin</artifactId>
                 <version>1.12.0</version>
                 <configuration>
-                    <nodeVersion>v16.17.0</nodeVersion>
-                    <npmVersion>8.19.0</npmVersion>
+                    <nodeVersion>v18.15.0</nodeVersion>
+                    <npmVersion>10.5.0</npmVersion>
                     <!-- 国内node下载加速 -->
                     <!--<nodeDownloadRoot>https://mirrors.huaweicloud.com/nodejs/</nodeDownloadRoot>-->
                     <!--<npmDownloadRoot>https://repo.huaweicloud.com/npm-software/</npmDownloadRoot>-->
@@ -57,8 +66,8 @@
                             <goal>npm</goal>
                         </goals>
                         <configuration>
-                            <!-- 国内npm源加速可在后面加入(去掉空格) - -registry https://repo.huaweicloud.com/repository/npm/ -->
-                            <arguments>install --force</arguments>
+                            <!-- For domestic npm source acceleration, you can check the profile of npm Huawei or npm Taobao -->
+                            <arguments>install --force --registry ${npm-registry-repo}</arguments>
                         </configuration>
                     </execution>
                     <execution>

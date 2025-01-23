@@ -23,8 +23,9 @@ import static java.util.Objects.requireNonNull;
 
 import org.dinky.alert.AlertResult;
 import org.dinky.alert.AlertSendResponse;
+import org.dinky.alert.wechat.params.WechatParams;
 import org.dinky.utils.HttpUtils;
-import org.dinky.utils.JSONUtil;
+import org.dinky.utils.JsonUtils;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -34,16 +35,13 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import cn.hutool.core.text.StrFormatter;
 
 /**
  * WeChatSender
@@ -52,53 +50,43 @@ import cn.hutool.core.text.StrFormatter;
  */
 public class WeChatSender {
     private static final Logger logger = LoggerFactory.getLogger(WeChatSender.class);
-    private static final String CORP_ID_REGEX = "{corpId}";
-    private static final String SECRET_REGEX = "{secret}";
-    private static final String TOKEN_REGEX = "{token}";
-    private final String weChatAgentId;
-    private String weChatUsers;
+    private final WechatParams wechatParams;
     private final String weChatTokenUrlReplace;
-    private final String sendType;
-    private final String webhookUrl;
 
-    WeChatSender(Map<String, String> config) {
-        weChatAgentId = config.getOrDefault(WeChatConstants.AGENT_ID, "");
-        weChatUsers = config.getOrDefault(WeChatConstants.AT_USERS, "");
-        String isAtAll = config.getOrDefault(WeChatConstants.AT_ALL, "");
-        if (Boolean.parseBoolean(isAtAll)) {
-            weChatUsers = "all";
+    WeChatSender(Map<String, Object> config) {
+        this.wechatParams = JsonUtils.toBean(config, WechatParams.class);
+        if (wechatParams.isAtAll()) {
+            wechatParams.getAtUsers().clear();
+            wechatParams.getAtUsers().add("@all");
         }
-
-        webhookUrl = config.get(WeChatConstants.WEB_HOOK);
-
-        sendType = config.get(WeChatConstants.SEND_TYPE);
-        if (sendType.equals(WeChatType.CHAT.getValue())) {
-            requireNonNull(webhookUrl, WeChatConstants.WEB_HOOK + " must not null");
+        if (wechatParams.getSendType().equals(WeChatType.CHAT.getValue())) {
+            requireNonNull(wechatParams.getWebhook(), WeChatConstants.WEB_HOOK + " must not null");
         }
-
-        String weChatCorpId = config.getOrDefault(WeChatConstants.CORP_ID, "");
-        String weChatSecret = config.getOrDefault(WeChatConstants.SECRET, "");
-
-        weChatTokenUrlReplace = WeChatConstants.WECHAT_TOKEN_URL
-                .replace(CORP_ID_REGEX, weChatCorpId)
-                .replace(SECRET_REGEX, weChatSecret);
+        weChatTokenUrlReplace = String.format(
+                WeChatConstants.WECHAT_TOKEN_URL,
+                wechatParams.getSendUrl(),
+                wechatParams.getCorpId(),
+                wechatParams.getSecret());
     }
 
     /**
      * build template params
      *
-     * @param title
-     * @param content
-     * @return
+     * @param title  title
+     * @param content content
+     * @return Map<String, Object>
      */
     public Map<String, Object> buildTemplateParams(String title, String content) {
         Map<String, Object> params = new HashMap<>();
         params.put(WeChatConstants.ALERT_TEMPLATE_TITLE, title);
         params.put(WeChatConstants.ALERT_TEMPLATE_CONTENT, content);
-        params.put(WeChatConstants.ALERT_TEMPLATE_AGENT_ID, weChatAgentId);
-        List<String> atUsers = Arrays.stream(weChatUsers.split(","))
-                .map(u -> StrFormatter.format("<@{}>", u))
-                .collect(Collectors.toList());
+        if (wechatParams.getSendType().equals(WeChatType.APP.getValue())) {
+            params.put(WeChatConstants.ALERT_TEMPLATE_AGENT_ID, wechatParams.getAgentId());
+        }
+        List<String> atUsers = new ArrayList<>();
+        if (!wechatParams.getAtUsers().isEmpty()) {
+            atUsers.addAll(wechatParams.getAtUsers());
+        }
         params.put(WeChatConstants.ALERT_TEMPLATE_AT_USERS, atUsers);
         return params;
     }
@@ -107,12 +95,12 @@ public class WeChatSender {
         AlertResult alertResult = new AlertResult();
         String url;
         try {
-            if (sendType.equals(WeChatType.APP.getValue())) {
+            if (WeChatType.APP.getValue().equals(wechatParams.getSendType())) {
                 String token = getToken();
                 assert token != null;
-                url = WeChatConstants.WECHAT_PUSH_URL.replace(TOKEN_REGEX, token);
+                url = String.format(WeChatConstants.WECHAT_PUSH_URL, wechatParams.getSendUrl(), token);
             } else {
-                url = webhookUrl;
+                url = wechatParams.getWebhook();
             }
             return checkWeChatSendMsgResult(HttpUtils.post(url, content));
         } catch (Exception e) {
@@ -133,7 +121,7 @@ public class WeChatSender {
                     resp = EntityUtils.toString(entity, WeChatConstants.CHARSET);
                     EntityUtils.consume(entity);
                 }
-                HashMap<String, Object> map = JSONUtil.parseObject(resp, HashMap.class);
+                HashMap<String, Object> map = JsonUtils.parseDict(resp);
                 if (map != null && null != map.get(WeChatConstants.ACCESS_TOKEN)) {
                     return map.get(WeChatConstants.ACCESS_TOKEN).toString();
                 } else {
@@ -154,10 +142,19 @@ public class WeChatSender {
             logger.error("send we chat msg error,resp is null");
             return alertResult;
         }
-        AlertSendResponse sendMsgResponse = JSONUtil.parseObject(result, AlertSendResponse.class);
+        AlertSendResponse sendMsgResponse = JsonUtils.parseObject(result, AlertSendResponse.class);
         if (null == sendMsgResponse) {
             alertResult.setMessage("we chat send fail");
             logger.error("send we chat msg error,resp error");
+            return alertResult;
+        }
+        if (sendMsgResponse.getErrcode() != 0) {
+            logger.error(
+                    "send we chat msg error,resp error,code:{},msg:{}",
+                    sendMsgResponse.getErrcode(),
+                    sendMsgResponse.getErrmsg());
+            alertResult.setSuccess(false);
+            alertResult.setMessage(sendMsgResponse.getErrmsg());
             return alertResult;
         }
         if (sendMsgResponse.getErrcode() == 0) {

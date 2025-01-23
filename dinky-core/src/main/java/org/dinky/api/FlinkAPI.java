@@ -22,11 +22,13 @@ package org.dinky.api;
 import org.dinky.assertion.Asserts;
 import org.dinky.data.constant.FlinkRestAPIConstant;
 import org.dinky.data.constant.NetConstant;
-import org.dinky.gateway.enums.GatewayType;
+import org.dinky.data.enums.GatewayType;
+import org.dinky.data.exception.BusException;
 import org.dinky.gateway.enums.SavePointType;
 import org.dinky.gateway.model.JobInfo;
 import org.dinky.gateway.result.SavePointResult;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +72,11 @@ public class FlinkAPI {
     private static final ObjectMapper mapper = new ObjectMapper();
 
     public FlinkAPI(String address) {
-        this.address = address;
+        if (address.startsWith(NetConstant.HTTP) || address.startsWith(NetConstant.HTTPS)) {
+            this.address = address;
+        } else {
+            this.address = NetConstant.HTTP + address;
+        }
     }
 
     public static FlinkAPI build(String address) {
@@ -92,23 +98,34 @@ public class FlinkAPI {
     }
 
     /**
-     * get请求获取jobManger/TaskManager的日志 (结果为字符串并不是json格式)
+     * get请求获取jobManager/TaskManager的日志 (结果为字符串并不是json格式)
      *
      * @param route route
      * @return {@link String}
      */
     private String getResult(String route) {
-        return HttpUtil.get(NetConstant.HTTP + address + NetConstant.SLASH + route, NetConstant.SERVER_TIME_OUT_ACTIVE);
+        String url = address + NetConstant.SLASH + route;
+        if (!address.startsWith(NetConstant.HTTP) && !address.startsWith(NetConstant.HTTPS)) {
+            url = NetConstant.HTTP + url;
+        }
+        return HttpUtil.get(url, NetConstant.SERVER_TIME_OUT_ACTIVE);
     }
 
     private JsonNode post(String route, String body) {
-        String res = HttpUtil.post(
-                NetConstant.HTTP + address + NetConstant.SLASH + route, body, NetConstant.SERVER_TIME_OUT_ACTIVE);
+        String url = address + NetConstant.SLASH + route;
+        if (!address.startsWith(NetConstant.HTTP) && !address.startsWith(NetConstant.HTTPS)) {
+            url = NetConstant.HTTP + url;
+        }
+        String res = HttpUtil.post(url, body, NetConstant.SERVER_TIME_OUT_ACTIVE);
         return parse(res);
     }
 
     private JsonNode patch(String route, String body) {
-        String res = HttpUtil.createRequest(Method.PATCH, NetConstant.HTTP + address + NetConstant.SLASH + route)
+        String url = address + NetConstant.SLASH + route;
+        if (!address.startsWith(NetConstant.HTTP) && !address.startsWith(NetConstant.HTTPS)) {
+            url = NetConstant.HTTP + url;
+        }
+        String res = HttpUtil.createRequest(Method.PATCH, url)
                 .timeout(NetConstant.SERVER_TIME_OUT_ACTIVE)
                 .body(body)
                 .execute()
@@ -129,12 +146,11 @@ public class FlinkAPI {
     }
 
     @SuppressWarnings("checkstyle:Indentation")
-    public SavePointResult savepoints(String jobId, String savePointType, Map<String, String> taskConfig) {
-        SavePointType type = SavePointType.get(savePointType);
+    public SavePointResult savepoints(String jobId, SavePointType savePointType, Map<String, String> taskConfig) {
         JobInfo jobInfo = new JobInfo(jobId);
         Map<String, Object> paramMap = new HashMap<>(8);
         String paramType = null;
-        switch (type) {
+        switch (savePointType) {
             case CANCEL:
                 paramMap.put(CANCEL_JOB, true);
                 paramType = FlinkRestAPIConstant.SAVEPOINTS;
@@ -202,7 +218,7 @@ public class FlinkAPI {
                     break;
                 }
             } catch (Exception e) {
-                throw new RuntimeException(e.getMessage());
+                throw new BusException(e.getMessage());
             }
         }
 
@@ -377,7 +393,7 @@ public class FlinkAPI {
         return get(FlinkRestAPIConstant.TASK_MANAGER + containerId + FlinkRestAPIConstant.THREAD_DUMP);
     }
 
-    public JsonNode getJobMetricesItems(String jobId, String verticeId) {
+    public JsonNode getJobMetricsItems(String jobId, String verticeId) {
         return get(FlinkRestAPIConstant.JOBS
                 + jobId
                 + FlinkRestAPIConstant.VERTICES
@@ -385,8 +401,48 @@ public class FlinkAPI {
                 + FlinkRestAPIConstant.METRICS);
     }
 
-    public JsonNode getJobMetricesData(String jobId, String verticeId, String metrics) {
+    public JsonNode getJobMetricsData(String jobId, String verticeId, String metrics) {
         return get(FlinkRestAPIConstant.JOBS + jobId + FlinkRestAPIConstant.VERTICES + verticeId
                 + FlinkRestAPIConstant.METRICS + "?get=" + URLEncodeUtil.encode(metrics));
+    }
+
+    /**
+     * GET backpressure
+     */
+    public String getBackPressure(String jobId, String verticeId) {
+        return getResult(FlinkRestAPIConstant.JOBS
+                + jobId
+                + FlinkRestAPIConstant.VERTICES
+                + verticeId
+                + FlinkRestAPIConstant.BACKPRESSURE);
+    }
+
+    /**
+     * GET watermark
+     */
+    public String getWatermark(String jobId, String verticeId) {
+        return getResult(FlinkRestAPIConstant.JOBS
+                + jobId
+                + FlinkRestAPIConstant.VERTICES
+                + verticeId
+                + FlinkRestAPIConstant.WATERMARKS);
+    }
+    /**
+     * get vertices
+     */
+    public List<String> getVertices(String jobId) {
+        JsonNode jsonNode = getJobInfo(jobId);
+        if (jsonNode == null) {
+            return null;
+        }
+        List<String> arrayList = new ArrayList<>();
+        jsonNode.get("vertices").forEach(node -> {
+            if (Asserts.isNull(node)) {
+                return;
+            }
+            String id = node.get("id").asText();
+            arrayList.add(id);
+        });
+        return arrayList;
     }
 }

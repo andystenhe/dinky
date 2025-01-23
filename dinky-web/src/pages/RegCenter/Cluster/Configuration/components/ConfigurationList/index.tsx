@@ -1,19 +1,19 @@
 /*
  *
- *   Licensed to the Apache Software Foundation (ASF) under one or more
- *   contributor license agreements.  See the NOTICE file distributed with
- *   this work for additional information regarding copyright ownership.
- *   The ASF licenses this file to You under the Apache License, Version 2.0
- *   (the "License"); you may not use this file except in compliance with
- *   the License.  You may obtain a copy of the License at
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  *
  */
 
@@ -22,31 +22,31 @@ import { EditBtn } from '@/components/CallBackButton/EditBtn';
 import { EnableSwitchBtn } from '@/components/CallBackButton/EnableSwitchBtn';
 import { NormalDeleteBtn } from '@/components/CallBackButton/NormalDeleteBtn';
 import { RunningBtn } from '@/components/CallBackButton/RunningBtn';
-import { ClusterConfigIcon } from '@/components/Icons/HomeIcon';
+import { HadoopIcon, K8sIcon } from '@/components/Icons/HomeIcon';
 import { DataAction } from '@/components/StyledComponents';
-import { Authorized } from '@/hooks/useAccess';
-import { imgStyle } from '@/pages/Home/constants';
+import { Authorized, HasAuthority } from '@/hooks/useAccess';
 import ConfigurationModal from '@/pages/RegCenter/Cluster/Configuration/components/ConfigurationModal';
-import { CLUSTER_CONFIG_TYPE } from '@/pages/RegCenter/Cluster/Configuration/components/contants';
-import { queryList } from '@/services/api';
+import { CLUSTER_TYPE_OPTIONS } from '@/pages/RegCenter/Cluster/constants';
 import {
   handleAddOrUpdate,
   handleOption,
   handlePutDataByParams,
   handleRemoveById,
+  queryDataByParams,
   updateDataByParam
 } from '@/services/BusinessCrud';
 import { PROTABLE_OPTIONS_PUBLIC, PRO_LIST_CARD_OPTIONS } from '@/services/constants';
 import { API_CONSTANTS } from '@/services/endpoints';
+import { PermissionConstants } from '@/types/Public/constants';
 import { Cluster } from '@/types/RegCenter/data';
 import { InitClusterConfigState } from '@/types/RegCenter/init.d';
 import { ClusterConfigState } from '@/types/RegCenter/state.d';
 import { l } from '@/utils/intl';
 import { CheckCircleOutlined, ExclamationCircleOutlined, HeartTwoTone } from '@ant-design/icons';
 import { ActionType, ProList } from '@ant-design/pro-components';
-import { Button, Descriptions, Modal, Space, Tag, Tooltip } from 'antd';
-import DescriptionsItem from 'antd/es/descriptions/Item';
-import { useEffect, useRef, useState } from 'react';
+import { Button, Descriptions, Input, Modal, Space, Tag, Tooltip } from 'antd';
+import { useRef, useState } from 'react';
+import { useAsyncEffect } from 'ahooks';
 
 export default () => {
   /**
@@ -57,20 +57,14 @@ export default () => {
 
   const actionRef = useRef<ActionType>();
 
-  // const { data, run  } = useRequest({
-  //   url: API_CONSTANTS.CLUSTER_CONFIGURATION,
-  //   method: 'POST',
-  //   data: {}
-  // });
-
-  const queryClusterConfigList = async () => {
-    queryList(API_CONSTANTS.CLUSTER_CONFIGURATION).then((res) =>
-      setClusterConfigState((prevState) => ({ ...prevState, configList: res.data }))
+  const queryClusterConfigList = async (keyword = '') => {
+    queryDataByParams(API_CONSTANTS.CLUSTER_CONFIGURATION, { keyword }).then((res) =>
+      setClusterConfigState((prevState) => ({ ...prevState, configList: res as Cluster.Config[] }))
     );
   };
 
-  useEffect(() => {
-    queryClusterConfigList();
+  useAsyncEffect(async () => {
+    await queryClusterConfigList();
   }, []);
 
   /**
@@ -78,7 +72,7 @@ export default () => {
    * @param {() => void} callback
    * @returns {Promise<void>}
    */
-  const executeAndCallbackRefresh = async (callback: () => void) => {
+  const executeAndCallbackRefresh = async (callback: () => Promise<any>): Promise<void> => {
     setClusterConfigState((prevState) => ({ ...prevState, loading: true }));
     await callback();
     await queryClusterConfigList();
@@ -145,8 +139,7 @@ export default () => {
    */
   const handleSubmit = async (value: Partial<Cluster.Config>) => {
     await executeAndCallbackRefresh(async () => {
-      value.configJson = JSON.stringify(value.configJson);
-      await handleAddOrUpdate(API_CONSTANTS.CLUSTER_CONFIGURATION, value);
+      await handleAddOrUpdate(API_CONSTANTS.CLUSTER_CONFIGURATION_ADD_OR_UPDATE, value);
       await handleCancel();
     });
   };
@@ -158,11 +151,11 @@ export default () => {
   const renderDataSubTitle = (item: Cluster.Config) => {
     return (
       <Descriptions size={'small'} layout={'vertical'} column={1}>
-        <DescriptionsItem className={'hidden-overflow'} key={item.id}>
+        <Descriptions.Item className={'hidden-overflow'} key={item.id}>
           <Tooltip key={item.name} title={item.name}>
             {item.name}
           </Tooltip>
-        </DescriptionsItem>
+        </Descriptions.Item>
       </Descriptions>
     );
   };
@@ -175,7 +168,7 @@ export default () => {
     setClusterConfigState((prevState) => ({
       ...prevState,
       editOpen: true,
-      value: { ...item, configJson: JSON.stringify(item?.configJson ?? {}) }
+      value: { ...item }
     }));
   };
 
@@ -195,24 +188,40 @@ export default () => {
    */
   const renderDataActionButton = (item: Cluster.Config) => {
     return [
-      <Authorized key={`${item.id}_edit`} path='/registration/cluster/config/edit'>
+      <Authorized
+        key={`${item.id}_edit`}
+        path={PermissionConstants.REGISTRATION_CLUSTER_CONFIG_ADD}
+      >
         <EditBtn key={`${item.id}_edit`} onClick={() => editClick(item)} />
       </Authorized>,
-      <Authorized key={`${item.id}_delete`} path='/registration/cluster/config/delete'>
+      <Authorized
+        key={`${item.id}_delete`}
+        path={PermissionConstants.REGISTRATION_CLUSTER_CONFIG_DELETE}
+      >
         <NormalDeleteBtn key={`${item.id}_delete`} onClick={() => handleDeleteSubmit(item.id)} />
       </Authorized>,
-      <RunningBtn
-        key={`${item.id}_running`}
-        title={l('rc.cc.start')}
-        onClick={() => handleStartCluster(item)}
-      />,
-      <Button
-        className={'options-button'}
+      <Authorized
+        key={`${item.id}_deploy`}
+        path={PermissionConstants.REGISTRATION_CLUSTER_CONFIG_DEPLOY}
+      >
+        <RunningBtn
+          key={`${item.id}_running`}
+          title={l('rc.cc.start')}
+          onClick={() => handleStartCluster(item)}
+        />
+      </Authorized>,
+      <Authorized
         key={`${item.id}_heart`}
-        onClick={() => handleCheckHeartBeat(item)}
-        title={l('button.heartbeat')}
-        icon={<HeartTwoTone twoToneColor={item.isAvailable ? '#1ac431' : '#e10d0d'} />}
-      />
+        path={PermissionConstants.REGISTRATION_CLUSTER_CONFIG_HEARTBEATS}
+      >
+        <Button
+          className={'options-button'}
+          key={`${item.id}_heart`}
+          onClick={() => handleCheckHeartBeat(item)}
+          title={l('button.heartbeat')}
+          icon={<HeartTwoTone twoToneColor={item.isAvailable ? '#1ac431' : '#e10d0d'} />}
+        />
+      </Authorized>
     ];
   };
   /**
@@ -222,9 +231,13 @@ export default () => {
   const renderDataContent = (item: Cluster.Config) => {
     return (
       <Space size={4} align={'baseline'} className={'hidden-overflow'}>
-        <EnableSwitchBtn record={item} onChange={() => handleEnable(item)} />
+        <EnableSwitchBtn
+          record={item}
+          onChange={() => handleEnable(item)}
+          disabled={!HasAuthority(PermissionConstants.REGISTRATION_CLUSTER_CONFIG_EDIT)}
+        />
         <Tag color='cyan'>
-          {CLUSTER_CONFIG_TYPE.find((record) => item.type === record.value)?.label}
+          {CLUSTER_TYPE_OPTIONS(true).find((record) => item.type === record.value)?.label}
         </Tag>
         <Tag
           icon={item.isAvailable ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}
@@ -241,10 +254,20 @@ export default () => {
    */
   const renderData = (list: Cluster.Config[]) =>
     list.map((item: Cluster.Config) => {
+      const Icon = item.type === 'yarn-application' ? HadoopIcon : K8sIcon;
       return {
         subTitle: renderDataSubTitle(item),
         actions: <DataAction>{renderDataActionButton(item)}</DataAction>,
-        avatar: <ClusterConfigIcon style={imgStyle} />,
+        avatar: (
+          <Icon
+            style={{
+              display: 'block',
+              alignContent: 'center',
+              width: 42,
+              height: 42
+            }}
+          />
+        ),
         content: renderDataContent(item),
         key: item.id
       };
@@ -254,7 +277,14 @@ export default () => {
    * tool bar render
    */
   const toolBarRender = () => [
-    <Authorized key='new' path='/registration/cluster/config/new'>
+    <Input.Search
+      loading={clusterConfigState.loading}
+      key={`_search`}
+      allowClear
+      placeholder={l('rc.cc.search')}
+      onSearch={(value) => queryClusterConfigList(value)}
+    />,
+    <Authorized key='new' path={PermissionConstants.REGISTRATION_CLUSTER_CONFIG_ADD}>
       <CreateBtn
         key={'configcreate'}
         onClick={() => setClusterConfigState((prevState) => ({ ...prevState, addedOpen: true }))}
@@ -274,6 +304,7 @@ export default () => {
         actionRef={actionRef}
         headerTitle={l('rc.cc.management')}
         toolBarRender={toolBarRender}
+        grid={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 3, xxl: 4 }}
         dataSource={renderData(clusterConfigState.configList)}
       />
 
@@ -283,6 +314,7 @@ export default () => {
         onClose={handleCancel}
         value={{}}
         onSubmit={handleSubmit}
+        onHeartBeat={handleCheckHeartBeat}
       />
       {/*modify*/}
       {clusterConfigState.editOpen && (
@@ -291,6 +323,7 @@ export default () => {
           onClose={handleCancel}
           value={clusterConfigState.value}
           onSubmit={handleSubmit}
+          onHeartBeat={handleCheckHeartBeat}
         />
       )}
     </>

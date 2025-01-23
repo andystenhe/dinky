@@ -20,12 +20,13 @@
 package org.dinky.sse.git;
 
 import org.dinky.data.dto.GitAnalysisJarDTO;
+import org.dinky.data.exception.DinkyException;
 import org.dinky.data.model.GitProject;
 import org.dinky.function.util.UDFUtil;
-import org.dinky.process.exception.DinkyException;
 import org.dinky.sse.StepSse;
+import org.dinky.utils.JsonUtils;
+import org.dinky.utils.URLUtils;
 
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -40,7 +41,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Dict;
-import cn.hutool.json.JSONUtil;
 
 /**
  * @author ZackYoung
@@ -60,7 +60,7 @@ public class AnalysisUdfClassStepSse extends StepSse {
 
     @Override
     public void exec() {
-        List<String> pathList = (List<String>) params.get("jarPath");
+        List<String> pathList = params.getBean("jarPath");
 
         List<GitAnalysisJarDTO> dataList = new ArrayList<>();
         Map<String, List<Class<?>>> udfMap = new TreeMap<>();
@@ -70,7 +70,7 @@ public class AnalysisUdfClassStepSse extends StepSse {
             throw new DinkyException("flink dependency not found");
         }
         pathList.parallelStream().forEach(jar -> {
-            List<Class<?>> udfClassByJar = UDFUtil.getUdfClassByJar(new File(jar));
+            List<Class<?>> udfClassByJar = UDFUtil.getUdfClassByJar(URLUtils.toFile(jar));
             udfMap.put(jar, udfClassByJar);
             sendMsg(Dict.create().set(jar, udfClassByJar));
         });
@@ -86,7 +86,7 @@ public class AnalysisUdfClassStepSse extends StepSse {
         });
 
         dataList.sort(Comparator.comparing(GitAnalysisJarDTO::getOrderLine));
-        String data = JSONUtil.toJsonStr(dataList);
+        String data = JsonUtils.toJsonString(dataList);
 
         sendMsg(getList(null).set("data", data));
 

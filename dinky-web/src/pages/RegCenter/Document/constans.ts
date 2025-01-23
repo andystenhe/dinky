@@ -17,213 +17,69 @@
  *
  */
 
-/**
- * document category
- */
-export const DOCUMENT_CATEGORY = [
-  {
-    text: 'Variable',
-    value: 'Variable'
-  },
-  {
-    text: 'Module',
-    value: 'Module'
-  },
-  {
-    text: 'Operator',
-    value: 'Operator'
-  },
-  {
-    text: 'Function',
-    value: 'Function'
-  },
-  {
-    text: 'Property',
-    value: 'Property'
-  },
-  {
-    text: 'Method',
-    value: 'Method'
-  },
-  {
-    text: 'Reference',
-    value: 'Reference'
-  }
-];
+import { l } from '@/utils/intl';
 
-/**
- * document category enum map
- */
 export const DOCUMENT_CATEGORY_ENUMS = {
-  Variable: { text: 'Variable' },
-  Module: { text: 'Module' },
-  Operator: { text: 'Operator' },
-  Function: { text: 'Function' },
-  Property: { text: 'Property' },
-  Method: { text: 'Method' },
-  Reference: { text: 'Reference' }
+  Variable: { text: 'Variable', value: 'Variable' },
+  Module: { text: 'Module', value: 'Module' },
+  Operator: { text: 'Operator', value: 'Operator' },
+  Function: { text: 'Function', value: 'Function' },
+  Property: { text: 'Property', value: 'Property' },
+  Method: { text: 'Method', value: 'Method' },
+  Reference: { text: 'Reference', value: 'Reference' }
 };
-/**
- * document type
- */
-export const DOCUMENT_FUNCTION_TYPE = [
-  {
-    text: '优化参数',
-    value: '优化参数'
-  },
-  {
-    text: '建表语句',
-    value: '建表语句'
-  },
-  {
-    text: 'CataLog',
-    value: 'CataLog'
-  },
-  {
-    text: '设置参数',
-    value: '设置参数'
-  },
-  {
-    text: '内置函数',
-    value: '内置函数'
-  },
-  {
-    text: 'UDF',
-    value: 'UDF'
-  },
-  {
-    text: 'Other',
-    value: 'Other'
-  }
-];
 
 /**
  * document function type enum map
  */
-export const DOCUMENT_FUNCTION_ENUMS = {
-  优化参数: { text: '优化参数' },
-  建表语句: { text: '建表语句' },
-  CataLog: { text: 'CataLog' },
-  设置参数: { text: '设置参数' },
-  内置函数: { text: '内置函数' },
-  UDF: { text: 'UDF' },
-  Other: { text: 'Other' }
+export const DOCUMENT_TYPE_ENUMS = {
+  SQL_TEMPLATE: { text: l('rc.doc.type.codeSnippetOrTemplate'), value: 'SQL_TEMPLATE' },
+  FLINK_OPTIONS: { text: l('rc.doc.type.flinkParam'), value: 'FLINK_OPTIONS' },
+  FUN_UDF: { text: l('rc.doc.type.functionOrUDF'), value: 'FUN_UDF' },
+  OTHER: { text: l('rc.doc.type.other'), value: 'OTHER' }
 };
 
-export const DOCUMENT_SUBTYPE = [
-  {
-    text: 'Batch/Streaming',
-    value: 'Batch/Streaming'
+export const DOCUMENT_FUNCTION_TYPE_ENUMS = {
+  COMPARE_FUNCTION: { text: l('rc.doc.function.type.compare'), value: 'COMPARE_FUNCTION' },
+  LOGICAL_FUNCTION: { text: l('rc.doc.function.type.logical'), value: 'LOGICAL_FUNCTION' },
+  ARITHMETIC_FUNCTIONS: {
+    text: l('rc.doc.function.type.arithmetic'),
+    value: 'ARITHMETIC_FUNCTIONS'
   },
-  {
-    text: 'Batch',
-    value: 'Batch'
+  STRING_FUNCTIONS: { text: l('rc.doc.function.type.string'), value: 'STRING_FUNCTIONS' },
+  TIME_FUNCTION: { text: l('rc.doc.function.type.time'), value: 'TIME_FUNCTION' },
+  CONDITIONAL_FUNCTION: {
+    text: l('rc.doc.function.type.conditional'),
+    value: 'CONDITIONAL_FUNCTION'
   },
-  {
-    text: 'Streaming',
-    value: 'Streaming'
+  TYPE_CONVER_FUNCTION: {
+    text: l('rc.doc.function.type.typeConver'),
+    value: 'TYPE_CONVER_FUNCTION'
   },
-  {
-    text: 'Other',
-    value: 'Other'
+  COLLECTION_FUNCTION: { text: l('rc.doc.function.type.collection'), value: 'COLLECTION_FUNCTION' },
+  VALUE_CONSTRUCTION_FUNCTION: {
+    text: l('rc.doc.function.type.valueConstruction'),
+    value: 'VALUE_CONSTRUCTION_FUNCTION Construction函数'
   },
-  {
-    text: '比较函数',
-    value: '比较函数'
+  VALUE_ACCESS_FUNCTION: {
+    text: l('rc.doc.function.type.valueAccess'),
+    value: 'VALUE_ACCESS_FUNCTION'
   },
-  {
-    text: '逻辑函数',
-    value: '逻辑函数'
+  GROUP_FUNCTION: { text: l('rc.doc.function.type.group'), value: 'GROUP_FUNCTION' },
+  HASH_FUNCTION: { text: l('rc.doc.function.type.hash'), value: 'HASH_FUNCTION' },
+  AGGREGATE_FUNCTION: { text: l('rc.doc.function.type.aggregate'), value: 'AGGREGATE_FUNCTION' },
+  COLUMN_FUNCTION: { text: l('rc.doc.function.type.column'), value: 'COLUMN_FUNCTION' },
+  TABLE_AGGREGATE_FUNCTION: {
+    text: l('rc.doc.function.type.tableAggregate'),
+    value: 'TABLE_AGGREGATE_FUNCTION'
   },
-  {
-    text: '算术函数',
-    value: '算术函数'
-  },
-  {
-    text: '字符串函数',
-    value: '字符串函数'
-  },
-  {
-    text: '时间函数',
-    value: '时间函数'
-  },
-  {
-    text: '类型转换函数功能',
-    value: '类型转换函数功能'
-  },
-  {
-    text: '条件函数',
-    value: '条件函数'
-  },
-  {
-    text: 'Collection 函数',
-    value: 'Collection 函数'
-  },
-  {
-    text: 'Value Construction函数',
-    value: 'Value Construction函数'
-  },
-  {
-    text: 'Value Access函数',
-    value: 'Value Access函数'
-  },
-  {
-    text: '分组函数',
-    value: '分组函数'
-  },
-  {
-    text: 'hash函数',
-    value: 'hash函数'
-  },
-  {
-    text: '聚合函数',
-    value: '聚合函数'
-  },
-  {
-    text: '列函数',
-    value: '列函数'
-  },
-  {
-    text: '表值聚合函数',
-    value: '表值聚合函数'
-  },
-  {
-    text: '其他函数',
-    value: '其他函数'
-  }
-];
-
-export const DOCUMENT_SUBTYPE_ENUMS = {
-  'Batch/Streaming': { text: 'Batch/Streaming' },
-  Batch: { text: 'Batch' },
-  Streaming: { text: 'Streaming' },
-  Other: { text: 'Other' },
-  比较函数: { text: '比较函数' },
-  逻辑函数: { text: '逻辑函数' },
-  算术函数: { text: '算术函数' },
-  字符串函数: { text: '字符串函数' },
-  时间函数: { text: '时间函数' },
-  条件函数: { text: '条件函数' },
-  类型转换函数功能: { text: '类型转换函数功能' },
-  'Collection 函数': { text: 'Collection 函数' },
-  'Value Construction函数': { text: 'Value Construction函数' },
-  'Value Access函数': { text: 'Value Access函数' },
-  分组函数: { text: '分组函数' },
-  hash函数: { text: 'hash函数' },
-  聚合函数: { text: '聚合函数' },
-  列函数: { text: '列函数' },
-  表值聚合函数: { text: '表值聚合函数' },
-  其他函数: { text: '其他函数' }
+  OTHER_FUNCTION: { text: l('rc.doc.function.type.other'), value: 'OTHER_FUNCTION' }
 };
 
 /**
  * versions  select options
  */
 export const VERSIONS = [
-  {
-    text: 'Flink-1.13',
-    value: '1.13'
-  },
   {
     text: 'Flink-1.14',
     value: '1.14'
@@ -239,6 +95,18 @@ export const VERSIONS = [
   {
     text: 'Flink-1.17',
     value: '1.17'
+  },
+  {
+    text: 'Flink-1.18',
+    value: '1.18'
+  },
+  {
+    text: 'Flink-1.19',
+    value: '1.19'
+  },
+  {
+    text: 'Flink-1.20',
+    value: '1.20'
   },
   {
     text: 'All Versions',

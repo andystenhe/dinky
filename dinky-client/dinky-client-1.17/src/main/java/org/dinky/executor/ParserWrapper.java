@@ -19,6 +19,9 @@
 
 package org.dinky.executor;
 
+import org.dinky.utils.LogUtil;
+
+import org.apache.calcite.sql.SqlNode;
 import org.apache.flink.table.catalog.UnresolvedIdentifier;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.operations.Operation;
@@ -43,8 +46,12 @@ public class ParserWrapper implements ExtendedParser {
         if (result != null) {
             return result;
         }
-
-        return customParser.getParser().parse(statement);
+        try {
+            return customParser.getParser().parse(statement);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    String.format("Failed to parse statement: %s , reason: %s", statement, LogUtil.getError(e)), e);
+        }
     }
 
     @Override
@@ -61,6 +68,21 @@ public class ParserWrapper implements ExtendedParser {
     @Override
     public String[] getCompletionHints(String statement, int position) {
         return customParser.getParser().getCompletionHints(statement, position);
+    }
+
+    @Override
+    public SqlNode parseExpression(String sqlExpression) {
+        return customParser.parseExpression(sqlExpression);
+    }
+
+    @Override
+    public SqlNode parseSql(String statement) {
+        return customParser.parseSql(statement);
+    }
+
+    @Override
+    public SqlNode validate(SqlNode sqlNode) {
+        return customParser.validate(sqlNode);
     }
 
     @Override

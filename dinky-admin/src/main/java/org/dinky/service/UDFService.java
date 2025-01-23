@@ -19,4 +19,54 @@
 
 package org.dinky.service;
 
-public interface UDFService {}
+import org.dinky.data.model.Resources;
+import org.dinky.data.model.udf.UDFManage;
+import org.dinky.data.vo.CascaderVO;
+import org.dinky.data.vo.UDFManageVO;
+import org.dinky.function.data.model.UDF;
+
+import java.util.List;
+
+import org.springframework.transaction.annotation.Transactional;
+
+import com.baomidou.mybatisplus.extension.service.IService;
+
+public interface UDFService extends IService<UDFManage> {
+    /**
+     * update udf name by id
+     * @param entity udf
+     * @return boolean
+     */
+    boolean update(UDFManage entity);
+
+    /**
+     * get all udf
+     * @return List
+     */
+    List<UDFManageVO> selectAll();
+
+    /**
+     * get udf by id
+     * @return UDFManage
+     */
+    List<Resources> udfResourcesList();
+
+    /**
+     * add or update udf by resourceIds
+     * @param resourceIds resourceIds
+     */
+    @Transactional(rollbackFor = Exception.class)
+    void addOrUpdateByResourceId(List<Integer> resourceIds);
+
+    /**
+     * get udf from udfManage
+     * @return List
+     */
+    List<UDFManage> getUDFFromUdfManage();
+
+    /**
+     * get all udf to cascader list
+     * @return List
+     */
+    List<CascaderVO> getAllUdfsToCascader(List<UDF> userDefinedReleaseUdfs);
+}

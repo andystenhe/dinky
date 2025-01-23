@@ -1,28 +1,29 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
-import Footer from '@/components/Footer';
 import ChooseModal from '@/pages/Other/Login/ChooseModal';
-import { gotoRedirectUrl, redirectToLogin } from '@/pages/Other/Login/function';
+import { gotoRedirectUrl, initSomeThing, redirectToLogin } from '@/pages/Other/Login/function';
 import LangSwitch from '@/pages/Other/Login/LangSwitch';
 import { chooseTenantSubmit, login, queryDataByParams } from '@/services/BusinessCrud';
 import { API } from '@/services/data';
 import { API_CONSTANTS } from '@/services/endpoints';
-import { UserBaseInfo } from '@/types/AuthCenter/data';
+import { SaTokenInfo, UserBaseInfo } from '@/types/AuthCenter/data.d';
 import { setTenantStorageAndCookie } from '@/utils/function';
 import { useLocalStorage } from '@/utils/hook/useLocalStorage';
 import { l } from '@/utils/intl';
@@ -30,9 +31,9 @@ import { ErrorMessage, SuccessMessageAsync } from '@/utils/messages';
 import { useEmotionCss } from '@ant-design/use-emotion-css';
 import { useModel } from '@umijs/max';
 import React, { useEffect, useState } from 'react';
-import { flushSync } from 'react-dom';
 import HelmetTitle from './HelmetTitle';
 import LoginForm from './LoginForm';
+import { TOKEN_KEY } from '@/services/constants';
 
 const Login: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
@@ -40,7 +41,7 @@ const Login: React.FC = () => {
   const [tenantVisible, handleTenantVisible] = useState<boolean>(false);
   const [tenant, setTenant] = useState<UserBaseInfo.Tenant[]>([]);
 
-  const [localStorageOfToken, setLocalStorageOfToken] = useLocalStorage('token', '');
+  const [localStorageOfToken, setLocalStorageOfToken] = useLocalStorage(TOKEN_KEY, '');
 
   const containerClassName = useEmotionCss(() => {
     return {
@@ -53,12 +54,10 @@ const Login: React.FC = () => {
   const fetchUserInfo = async () => {
     const userInfo = await initialState?.fetchUserInfo?.();
     if (userInfo) {
-      flushSync(() => {
-        setInitialState((s) => ({
-          ...s,
-          currentUser: userInfo
-        }));
-      });
+      setInitialState((s) => ({
+        ...s,
+        currentUser: userInfo
+      }));
     }
   };
 
@@ -66,7 +65,8 @@ const Login: React.FC = () => {
    * When the token is expired, redirect to login
    */
   useEffect(() => {
-    const expirationTime = JSON.parse(JSON.stringify(localStorageOfToken)).tokenTimeout ?? 0; // GET TOKEN TIMEOUT
+    const expirationTime =
+      (JSON.parse(JSON.stringify(localStorageOfToken)) as SaTokenInfo)?.tokenTimeout ?? 0; // GET TOKEN TIMEOUT
     let timeRemaining = 0;
     let timer: NodeJS.Timeout;
     if (expirationTime > 0) {
@@ -74,7 +74,7 @@ const Login: React.FC = () => {
       const currentTime = Date.now();
       timeRemaining = expirationTime - currentTime;
       //  use setInterval to set a timer
-      timer = setInterval(() => redirectToLogin(), timeRemaining);
+      timer = setInterval(() => redirectToLogin(l('login.token.error')), timeRemaining);
     }
     return () => {
       clearTimeout(timer);
@@ -86,15 +86,16 @@ const Login: React.FC = () => {
       await SuccessMessageAsync(
         l('login.chooseTenantSuccess', '', {
           msg: chooseTenantResult.msg,
-          tenantCode: chooseTenantResult.datas.tenantCode
+          tenantCode: chooseTenantResult.data.tenantCode
         })
       );
       /**
        * After the selection is complete, refresh all user information
        */
       await fetchUserInfo();
+
       /**
-       * Redirect to home page
+       * Redirect to home page && reconnect Global Sse
        */
       gotoRedirectUrl();
     } else {
@@ -126,6 +127,7 @@ const Login: React.FC = () => {
     const chooseTenantResult: API.Result = await chooseTenantSubmit({
       tenantId
     });
+
     await handleChooseTenant(chooseTenantResult);
   };
 
@@ -133,18 +135,24 @@ const Login: React.FC = () => {
     try {
       // login
       const result = await login({ ...values });
+
       if (result.code === 0) {
         // if login success then get token info and set it to local storage
-        await queryDataByParams(API_CONSTANTS.TOKEN_INFO).then((res) =>
-          setLocalStorageOfToken(JSON.stringify(res))
-        );
+        await queryDataByParams<SaTokenInfo>(API_CONSTANTS.TOKEN_INFO).then((res) => {
+          if (res) {
+            setLocalStorageOfToken(JSON.stringify(res));
+          } else {
+            // 如果没有获取到token信息，直接跳转到登录页
+            redirectToLogin(l('login.token.error'));
+          }
+        });
       }
-      setInitialState((s) => ({ ...s, currentUser: result.datas }));
+      setInitialState((s) => ({ ...s, currentUser: result.data }));
       await SuccessMessageAsync(l('login.result', '', { msg: result.msg, time: result.time }));
       /**
        * After successful login, set the tenant list
        */
-      const tenantList: UserBaseInfo.Tenant[] = result.datas.tenantList;
+      const tenantList: UserBaseInfo.Tenant[] = result.data.tenantList;
       await assertTenant(tenantList);
       /**
        * Determine whether the current tenant list is multiple
@@ -172,13 +180,13 @@ const Login: React.FC = () => {
     await handleChooseTenant(result);
     handleTenantVisible(false);
   };
-
+  // 进入登录页初始化一些东西
+  initSomeThing();
   return (
     <div className={containerClassName}>
       <HelmetTitle />
       <LangSwitch />
       <LoginForm onSubmit={handleSubmitLogin} />
-      <Footer />
       <ChooseModal
         tenantVisible={tenantVisible}
         handleTenantVisible={() => handleTenantVisible(false)}

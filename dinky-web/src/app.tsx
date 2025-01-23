@@ -1,18 +1,20 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 import Footer from '@/components/Footer';
@@ -28,17 +30,18 @@ import { history } from '@umijs/max';
 import { JSX } from 'react';
 import { Reducer, StoreEnhancer } from 'redux';
 import { persistReducer, persistStore } from 'redux-persist';
-import storage from 'redux-persist/lib/storage';
 import { Navigate } from 'umi';
 import { default as defaultSettings, default as Settings } from '../config/defaultSettings';
+import { FullScreenProvider } from './hooks/useEditor';
 import { errorConfig } from './requestErrorConfig';
 import { getDataByParamsReturnResult } from './services/BusinessCrud';
 import { API } from './services/data';
+import localforage from 'localforage';
 
 // const isDev = process.env.NODE_ENV === "development";
 const loginPath = API_CONSTANTS.LOGIN_PATH;
 
-const whiteList = ['/user', '/user/login'];
+const whiteList = ['/user', loginPath];
 
 let extraRoutes: SysMenu[] = [];
 let rendered = false;
@@ -58,11 +61,11 @@ export function patchRoutes({ routes }: any) {
 
 const queryUserInfo = async () => {
   return getDataByParamsReturnResult(API_CONSTANTS.CURRENT_USER).then((result) => {
-    const { user, roleList, tenantList, currentTenant, menuList, saTokenInfo } = result.datas;
+    const { user, roleList, tenantList, currentTenant, menuList, saTokenInfo } = result.data;
     const currentUser: API.CurrentUser = {
       user: {
         ...user,
-        avatar: user.avatar ?? '/icons/user_avatar.png'
+        avatar: user.avatar ?? './icons/user_avatar.png'
       },
       roleList: roleList,
       tenantList: tenantList,
@@ -114,6 +117,40 @@ export async function getInitialState(): Promise<{
 
 // ProLayout 支持的api https://procomponents.ant.design/components/layout
 export const layout: RunTimeLayoutConfig = ({ initialState }) => {
+  // @ts-ignore
+  const fullscreen = initialState?.fullscreen;
+
+  const defaultSettings = {
+    onPageChange: () => {
+      const { location } = history;
+      // 如果没有登录，重定向到 login
+      if (!initialState?.currentUser && location.pathname !== loginPath) {
+        history.push(loginPath);
+      }
+    },
+    // 自定义 403 页面
+    unAccessible: <UnAccessible />,
+    // 增加一个 loading 的状态
+    childrenRender: (children: any) => {
+      return initialState?.loading ? (
+        <PageLoading />
+      ) : (
+        <AccessContextProvider currentUser={initialState?.currentUser}>
+          {/* @ts-ignore */}
+          <FullScreenProvider key={location.pathname}>{children}</FullScreenProvider>
+        </AccessContextProvider>
+      );
+    }
+  };
+
+  if (fullscreen) {
+    return {
+      ...initialState?.settings,
+      siderWidth: 0,
+      ...defaultSettings,
+      layout: 'side'
+    };
+  }
   return {
     headerTitleRender: () => {
       // 重新对 title 的设置进行设置
@@ -135,25 +172,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
         theme === THEME.light || undefined ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.15)'
     },*/
     isChildrenLayout: true,
-    onPageChange: () => {
-      const { location } = history;
-      // 如果没有登录，重定向到 login
-      if (!initialState?.currentUser && location.pathname !== loginPath) {
-        history.push(loginPath);
-      }
-    },
-    // 自定义 403 页面
-    unAccessible: <UnAccessible />,
-    // 增加一个 loading 的状态
-    childrenRender: (children) => {
-      return initialState?.loading ? (
-        <PageLoading />
-      ) : (
-        <AccessContextProvider currentUser={initialState?.currentUser}>
-          {children}
-        </AccessContextProvider>
-      );
-    },
+    ...defaultSettings,
     ...initialState?.settings
   };
 };
@@ -164,13 +183,15 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
  * @doc https://umijs.org/docs/max/request#配置
  */
 export const request = {
-  ...errorConfig
+  ...errorConfig,
+  // 修改为相对请求路径, 避免请求路径出现错误 会自动拼接为完整请求路径
+  baseURL: API_CONSTANTS.BASE_URL
 };
 
 // 这个是redux-persist 的配置
 const persistConfig = {
   key: 'root', // 自动框架生产的根目录id 是root。不变
-  storage // 这个是选择用什么存储，session 还是 storage
+  storage: localforage // 这个是选择用什么存储，session 还是 storage
 };
 
 const persistEnhancer: StoreEnhancer = (next) => (reducer: Reducer<any, any>) => {
@@ -189,7 +210,7 @@ export const dva = {
  * 动态修改默认跳转路由
  */
 const patch = (oldRoutes: any, routes: SysMenu[]) => {
-  oldRoutes[1].routes = oldRoutes[1].routes.map(
+  oldRoutes[1].routes = oldRoutes[1]?.routes?.map(
     (route: { routes: { path: any; element: JSX.Element }[]; path: string }) => {
       if (route.routes?.length) {
         const redirect = routes?.filter((r) => r.path.startsWith(route.path));
@@ -211,7 +232,9 @@ const patch = (oldRoutes: any, routes: SysMenu[]) => {
  */
 export function patchClientRoutes({ routes }: { routes: SysMenu[] }) {
   // 根据 extraRoutes 对 routes 做一些修改
-  patch(routes, extraRoutes);
+  if (extraRoutes.length) {
+    patch(routes, extraRoutes);
+  }
 }
 
 /***

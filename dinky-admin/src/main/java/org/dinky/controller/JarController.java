@@ -19,14 +19,11 @@
 
 package org.dinky.controller;
 
-import org.dinky.data.model.Jar;
 import org.dinky.data.model.Task;
-import org.dinky.data.result.ProTableResult;
 import org.dinky.data.result.Result;
 import org.dinky.function.constant.PathConstant;
 import org.dinky.function.data.model.UDF;
 import org.dinky.function.util.UDFUtil;
-import org.dinky.service.JarService;
 import org.dinky.service.TaskService;
 
 import org.apache.flink.table.catalog.FunctionLanguage;
@@ -35,15 +32,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.hutool.core.util.StrUtil;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -60,44 +53,19 @@ import lombok.extern.slf4j.Slf4j;
 @Api(tags = "Jar Controller")
 @RequestMapping("/api/jar")
 @RequiredArgsConstructor
+@SaCheckLogin
 public class JarController {
 
-    private final JarService jarService;
-
     private final TaskService taskService;
-
-    /** 新增或者更新 */
-    @PutMapping
-    public Result<Void> saveOrUpdate(@RequestBody Jar jar) throws Exception {
-        if (jarService.saveOrUpdate(jar)) {
-            return Result.succeed("新增成功");
-        } else {
-            return Result.failed("新增失败");
-        }
-    }
-
-    /** 动态查询列表 */
-    @PostMapping
-    public ProTableResult<Jar> listJars(@RequestBody JsonNode para) {
-        return jarService.selectForProTable(para);
-    }
-
-    /** 获取可用的jar列表 */
-    @GetMapping("/listEnabledAll")
-    @ApiOperation("Query jar list enabled all")
-    public Result<List<Jar>> listEnabledAll() {
-        List<Jar> jars = jarService.listEnabledAll();
-        return Result.succeed(jars, "获取成功");
-    }
 
     @PostMapping("/udf/generateJar")
     @ApiOperation("Generate jar")
     public Result<Map<String, List<String>>> generateJar() {
-        List<Task> allUDF = taskService.getAllUDF();
+        List<Task> allUDF = taskService.getReleaseUDF();
         List<UDF> udfCodes = allUDF.stream()
                 .map(task -> UDF.builder()
                         .code(task.getStatement())
-                        .className(task.getSavePointPath())
+                        .className(task.getConfigJson().getUdfConfig().getClassName())
                         .functionLanguage(
                                 FunctionLanguage.valueOf(task.getDialect().toUpperCase()))
                         .build())

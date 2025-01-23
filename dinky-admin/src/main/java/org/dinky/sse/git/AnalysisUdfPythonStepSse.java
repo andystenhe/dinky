@@ -20,11 +20,12 @@
 package org.dinky.sse.git;
 
 import org.dinky.data.dto.GitAnalysisJarDTO;
+import org.dinky.data.exception.DinkyException;
 import org.dinky.data.model.GitProject;
 import org.dinky.data.model.SystemConfiguration;
 import org.dinky.function.util.UDFUtil;
-import org.dinky.process.exception.DinkyException;
 import org.dinky.sse.StepSse;
+import org.dinky.utils.JsonUtils;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -37,7 +38,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Dict;
-import cn.hutool.json.JSONUtil;
 
 public class AnalysisUdfPythonStepSse extends StepSse {
     public AnalysisUdfPythonStepSse(
@@ -53,21 +53,21 @@ public class AnalysisUdfPythonStepSse extends StepSse {
     @Override
     public void exec() {
         File zipFile = (File) params.get("zipFile");
-        File projectFile = (File) params.get("projectFile");
+        String zipFilePath = params.getStr("zipFilePath");
         try {
             Thread.currentThread().getContextClassLoader().loadClass("org.apache.flink.table.api.ValidationException");
         } catch (ClassNotFoundException e) {
             throw new DinkyException("flink dependency not found");
         }
-        List<String> pythonUdfList = UDFUtil.getPythonUdfList(
-                SystemConfiguration.getInstances().getPythonHome(), projectFile.getAbsolutePath());
+        List<String> pythonUdfList =
+                UDFUtil.getPythonUdfList(SystemConfiguration.getInstances().getPythonHome(), zipFile.getAbsolutePath());
         GitAnalysisJarDTO gitAnalysisJarDTO = new GitAnalysisJarDTO();
-        gitAnalysisJarDTO.setJarPath(zipFile.getAbsolutePath());
+        gitAnalysisJarDTO.setJarPath(zipFilePath);
         gitAnalysisJarDTO.setClassList(pythonUdfList);
 
         List<GitAnalysisJarDTO> dataList = CollUtil.newArrayList(gitAnalysisJarDTO);
 
-        String data = JSONUtil.toJsonStr(dataList);
+        String data = JsonUtils.toJsonString(dataList);
         sendMsg(getList(null).set("data", data));
 
         FileUtil.appendString(data, getLogFile(), StandardCharsets.UTF_8);

@@ -19,22 +19,31 @@
 
 package org.dinky.data.result;
 
+import org.dinky.assertion.Asserts;
+import org.dinky.job.JobHandler;
+
 import org.apache.flink.table.api.TableResult;
+
+import java.util.Objects;
+
+import com.google.common.collect.Lists;
 
 /**
  * SelectBuilder
  *
  * @since 2021/5/25 16:03
  */
-public class SelectResultBuilder implements ResultBuilder {
+public class SelectResultBuilder extends AbstractResultBuilder implements ResultBuilder {
 
     private final Integer maxRowNum;
     private final boolean isChangeLog;
     private final boolean isAutoCancel;
     private final String timeZone;
 
-    public SelectResultBuilder(Integer maxRowNum, boolean isChangeLog, boolean isAutoCancel, String timeZone) {
-        this.maxRowNum = maxRowNum;
+    public SelectResultBuilder(
+            String id, Integer maxRowNum, boolean isChangeLog, boolean isAutoCancel, String timeZone) {
+        this.id = id;
+        this.maxRowNum = Asserts.isNotNull(maxRowNum) ? maxRowNum : 100;
         this.isChangeLog = isChangeLog;
         this.isAutoCancel = isAutoCancel;
         this.timeZone = timeZone;
@@ -44,9 +53,35 @@ public class SelectResultBuilder implements ResultBuilder {
     public IResult getResult(TableResult tableResult) {
         if (tableResult.getJobClient().isPresent()) {
             String jobId = tableResult.getJobClient().get().getJobID().toHexString();
-            ResultRunnable runnable = new ResultRunnable(tableResult, maxRowNum, isChangeLog, isAutoCancel, timeZone);
-            Thread thread = new Thread(runnable, jobId);
-            thread.start();
+            ResultRunnable runnable =
+                    new ResultRunnable(tableResult, id, maxRowNum, isChangeLog, isAutoCancel, timeZone);
+            threadPoolExecutor.execute(runnable);
+            return SelectResult.buildSuccess(jobId);
+        } else {
+            return SelectResult.buildFailed();
+        }
+    }
+
+    /**
+     * Get the results and store them persistently.
+     *
+     * @param tableResult table result
+     * @param jobHandler  job handler
+     * @return IResult
+     */
+    @Override
+    public IResult getResultWithPersistence(TableResult tableResult, JobHandler jobHandler) {
+        if (Objects.isNull(tableResult)) {
+            return SelectResult.buildFailed();
+        }
+        if (tableResult.getJobClient().isPresent()) {
+            String jobId = tableResult.getJobClient().get().getJobID().toHexString();
+            ResultRunnable runnable =
+                    new ResultRunnable(tableResult, id, maxRowNum, isChangeLog, isAutoCancel, timeZone);
+            runnable.registerCallback((s, selectResult) -> {
+                jobHandler.persistResultData(Lists.newArrayList(s));
+            });
+            threadPoolExecutor.execute(runnable);
             return SelectResult.buildSuccess(jobId);
         } else {
             return SelectResult.buildFailed();

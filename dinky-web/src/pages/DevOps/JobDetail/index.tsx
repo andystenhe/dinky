@@ -1,40 +1,42 @@
 /*
  *
- *   Licensed to the Apache Software Foundation (ASF) under one or more
- *   contributor license agreements.  See the NOTICE file distributed with
- *   this work for additional information regarding copyright ownership.
- *   The ASF licenses this file to You under the Apache License, Version 2.0
- *   (the "License"); you may not use this file except in compliance with
- *   the License.  You may obtain a copy of the License at
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  *
  */
 
-import { TagJobLifeCycle } from '@/pages/DevOps/function';
+import JobLifeCycleTag from '@/components/JobTags/JobLifeCycleTag';
+import StatusTag from '@/components/JobTags/StatusTag';
+import useHookRequest from '@/hooks/useHookRequest';
+import AlertHistory from '@/pages/DevOps/JobDetail/AlertHistory';
 import CheckPoints from '@/pages/DevOps/JobDetail/CheckPointsTab';
+import JobLineage from '@/pages/DevOps/JobDetail/JobLineage';
 import JobLogsTab from '@/pages/DevOps/JobDetail/JobLogs/JobLogsTab';
 import JobMetrics from '@/pages/DevOps/JobDetail/JobMetrics';
 import JobOperator from '@/pages/DevOps/JobDetail/JobOperator/JobOperator';
 import JobConfigTab from '@/pages/DevOps/JobDetail/JobOverview/JobOverview';
 import JobVersionTab from '@/pages/DevOps/JobDetail/JobVersion/JobVersionTab';
-import { DevopsType } from '@/pages/DevOps/JobDetail/model';
-import JobOperatorGraph from '@/pages/Home/JobOverView/JobOperatorGraph';
-import { API_CONSTANTS } from '@/services/endpoints';
+import { refreshJobInstance } from '@/pages/DevOps/JobDetail/srvice';
 import { Jobs } from '@/types/DevOps/data';
 import { l } from '@/utils/intl';
+import { history } from '@@/core/history';
 import { ClusterOutlined, FireOutlined, RocketOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
-import { useRequest } from '@umijs/max';
 import { Tag } from 'antd';
 import { useState } from 'react';
-import { connect, useLocation } from 'umi';
+import { useLocation } from 'umi';
 
 /**
  * Enum defining different operators for the JobDetail component.
@@ -46,8 +48,7 @@ const OperatorEnum = {
   JOB_CHECKPOINTS: 'job_checkpoints',
   JOB_ALERT: 'job_alert',
   JOB_METRICS: 'job_monitor',
-  JOB_LINEAGE: 'job_lineage',
-  JOB_GRAPH: 'job_graph'
+  JOB_LINEAGE: 'job_lineage'
 };
 
 /**
@@ -57,10 +58,18 @@ const OperatorEnum = {
  * @returns {JSX.Element} - The rendered JobDetail component.
  */
 const JobDetail = (props: any) => {
-  const { dispatch, jobInfoDetail } = props;
-
   const params = useLocation();
   const id = params.search.split('=')[1];
+  if (!id) {
+    history.push(`/devops/`);
+  }
+
+  const { data, run } = useHookRequest(refreshJobInstance, {
+    defaultParams: [id, false],
+    pollingInterval: 3000
+  });
+
+  const jobInfoDetail = data as Jobs.JobInfoDetail;
 
   const [tabKey, setTabKey] = useState<string>(OperatorEnum.JOB_BASE_INFO);
 
@@ -70,28 +79,10 @@ const JobDetail = (props: any) => {
     [OperatorEnum.JOB_LOGS]: <JobLogsTab jobDetail={jobInfoDetail} />,
     [OperatorEnum.JOB_VERSION]: <JobVersionTab jobDetail={jobInfoDetail} />,
     [OperatorEnum.JOB_CHECKPOINTS]: <CheckPoints jobDetail={jobInfoDetail} />,
-    [OperatorEnum.JOB_METRICS]: <JobMetrics />,
-    [OperatorEnum.JOB_LINEAGE]: <CheckPoints jobDetail={jobInfoDetail} />,
-    [OperatorEnum.JOB_ALERT]: <CheckPoints jobDetail={jobInfoDetail} />,
-    [OperatorEnum.JOB_GRAPH]: <JobOperatorGraph jobDetail={jobInfoDetail} />
+    [OperatorEnum.JOB_METRICS]: <JobMetrics jobDetail={jobInfoDetail} />,
+    [OperatorEnum.JOB_LINEAGE]: <JobLineage jobDetail={jobInfoDetail} />,
+    [OperatorEnum.JOB_ALERT]: <AlertHistory jobDetail={jobInfoDetail} />
   };
-
-  useRequest(
-    {
-      url: API_CONSTANTS.GET_JOB_DETAIL,
-      params: { id: id }
-    },
-    {
-      cacheKey: 'data-detail',
-      pollingInterval: 3000,
-      onSuccess: (data: Jobs.JobInfoDetail, params) => {
-        dispatch({
-          type: 'Devops/setJobInfoDetail',
-          jobDetail: data
-        });
-      }
-    }
-  );
 
   // Define the tabs config for job operators
   const JobOperatorTabs = [
@@ -116,24 +107,23 @@ const JobDetail = (props: any) => {
       tab: l('devops.jobinfo.config.JobLineage'),
       key: OperatorEnum.JOB_LINEAGE
     },
-    { tab: l('devops.jobinfo.config.JobAlert'), key: OperatorEnum.JOB_ALERT },
-    {
-      tab: l('devops.jobinfo.config.OperatorGraph'),
-      key: OperatorEnum.JOB_GRAPH
-    }
+    { tab: l('devops.jobinfo.config.JobAlert'), key: OperatorEnum.JOB_ALERT }
   ];
 
   return (
     <PageContainer
+      key={id}
+      loading={!data}
       title={jobInfoDetail?.instance?.name}
-      subTitle={TagJobLifeCycle(jobInfoDetail?.instance?.step)}
+      subTitle={<JobLifeCycleTag status={jobInfoDetail?.instance?.step} />}
       ghost={false}
-      extra={<JobOperator jobDetail={jobInfoDetail} />}
+      extra={<JobOperator jobDetail={jobInfoDetail} refesh={(isForce) => run(id, isForce)} />}
       onBack={() => window.history.back()}
       breadcrumb={{}}
       tabList={JobOperatorTabs}
       onTabChange={(key) => setTabKey(key)}
       tags={[
+        <StatusTag status={jobInfoDetail?.instance?.status} />,
         <Tag key={'tg1'} color='blue'>
           <FireOutlined /> {jobInfoDetail?.instance?.jid}
         </Tag>,
@@ -141,7 +131,7 @@ const JobDetail = (props: any) => {
           <RocketOutlined /> {jobInfoDetail?.history?.type}
         </Tag>,
         <Tag key={'tg3'} color='green'>
-          <ClusterOutlined /> {jobInfoDetail?.cluster?.alias}
+          <ClusterOutlined /> {jobInfoDetail?.clusterInstance?.alias}
         </Tag>
       ]}
     >
@@ -150,6 +140,4 @@ const JobDetail = (props: any) => {
   );
 };
 
-export default connect(({ Devops }: { Devops: DevopsType }) => ({
-  jobInfoDetail: Devops.jobInfoDetail
-}))(JobDetail);
+export default JobDetail;

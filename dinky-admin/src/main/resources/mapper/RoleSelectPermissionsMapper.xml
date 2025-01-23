@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.dinky.mapper.RowPermissionsMapper">
-    <select id="selectForProTable" resultType="org.dinky.data.model.RowPermissions">
+    <select id="selectForProTable" resultType="org.dinky.data.model.rbac.RowPermissions">
         select
         a.*,
         b.role_code,
@@ -12,16 +12,16 @@
         <where>
             1=1
             <if test='param.roleCode!=null and param.roleCode!=""'>
-                and b.role_code like "%${param.roleCode}%"
+                and b.role_code like concat('%',#{param.roleCode},'%')
             </if>
             <if test='param.roleName!=null and param.roleName!=""'>
-                and b.role_name like "%${param.roleName}%"
+                and b.role_name like concat('%',#{param.roleName},'%')
             </if>
             <if test='param.tableName!=null and param.tableName!=""'>
-                and a.table_name like "%${param.tableName}%"
+                and a.table_name like concat('%',#{param.tableName},'%')
             </if>
             <if test='param.expression!=null and param.expression!=""'>
-                and a.expression like "%${param.expression}%"
+                and a.expression like concat('%',#{param.expression},'%')
             </if>
             <if test='ew.sqlSegment!=null and ew.sqlSegment!="" and !ew.sqlSegment.startsWith(" ORDER BY")'>
                 and
@@ -40,7 +40,7 @@
         </foreach>
     </delete>
 
-    <select id="listRoleSelectPermissionsByRoleIds" resultType="org.dinky.data.model.RowPermissions">
+    <select id="listRoleSelectPermissionsByRoleIds" resultType="org.dinky.data.model.rbac.RowPermissions">
         select
         a.*,
         b.role_code,

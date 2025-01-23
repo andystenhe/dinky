@@ -19,13 +19,13 @@
 
 package org.dinky.data.model;
 
-import org.dinky.gateway.enums.GatewayType;
+import org.dinky.data.typehandler.JSONObjectHandler;
 import org.dinky.gateway.model.FlinkClusterConfig;
 import org.dinky.mybatis.model.SuperEntity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 
-import cn.hutool.json.JSONObject;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
@@ -40,7 +40,7 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = false)
 @TableName("dinky_cluster_configuration")
 @ApiModel(value = "ClusterConfiguration", description = "if your cluster type is yarn ,the record is there")
-public class ClusterConfiguration extends SuperEntity {
+public class ClusterConfiguration extends SuperEntity<ClusterConfiguration> {
 
     private static final long serialVersionUID = 5830130188542066241L;
 
@@ -61,7 +61,8 @@ public class ClusterConfiguration extends SuperEntity {
             dataType = "String",
             example = "test",
             notes = "cluster config json")
-    private String configJson;
+    @TableField(typeHandler = JSONObjectHandler.class)
+    private FlinkClusterConfig configJson;
 
     @ApiModelProperty(
             value = "isAvailable",
@@ -73,11 +74,4 @@ public class ClusterConfiguration extends SuperEntity {
 
     @ApiModelProperty(value = "note", required = true, dataType = "String", example = "test", notes = "cluster note")
     private String note;
-
-    public FlinkClusterConfig getFlinkClusterCfg() {
-        JSONObject json = new JSONObject(getConfigJson());
-        FlinkClusterConfig flinkClusterConfig = json.toBean(FlinkClusterConfig.class);
-        flinkClusterConfig.setType(GatewayType.get(type));
-        return flinkClusterConfig;
-    }
 }

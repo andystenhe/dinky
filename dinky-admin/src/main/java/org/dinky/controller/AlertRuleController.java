@@ -19,13 +19,14 @@
 
 package org.dinky.controller;
 
-import org.dinky.configure.schedule.Alert.JobAlerts;
-import org.dinky.data.annotation.Log;
+import org.dinky.data.annotations.Log;
+import org.dinky.data.constant.PermissionConstants;
 import org.dinky.data.enums.BusinessType;
 import org.dinky.data.enums.Status;
-import org.dinky.data.model.AlertRule;
+import org.dinky.data.model.alert.AlertRule;
 import org.dinky.data.result.ProTableResult;
 import org.dinky.data.result.Result;
+import org.dinky.job.handler.JobAlertHandler;
 import org.dinky.service.AlertRuleService;
 
 import java.util.List;
@@ -41,6 +42,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiOperation;
@@ -50,10 +54,10 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/alertRule")
 @Api(tags = "Alert Rule Controller")
+@SaCheckLogin
 public class AlertRuleController {
 
     private final AlertRuleService alertRuleService;
-    private final JobAlerts jobAlerts;
 
     @PostMapping("/list")
     @ApiOperation("Query alert rules list")
@@ -78,13 +82,16 @@ public class AlertRuleController {
             dataTypeClass = AlertRule.class)
     @ApiOperation("Save or update alert rule")
     @Log(title = "Save or update alert rule", businessType = BusinessType.INSERT_OR_UPDATE)
+    @SaCheckPermission(
+            value = {PermissionConstants.REGISTRATION_ALERT_RULE_ADD, PermissionConstants.REGISTRATION_ALERT_RULE_EDIT},
+            mode = SaMode.OR)
     public Result<Boolean> saveOrUpdateAlertRule(@RequestBody AlertRule alertRule) {
         boolean saved = alertRuleService.saveOrUpdate(alertRule);
         if (saved) {
-            jobAlerts.refreshRulesData();
-            return Result.succeed(Status.MODIFY_SUCCESS);
+            JobAlertHandler.getInstance().refreshRulesData();
+            return Result.succeed(Status.SAVE_SUCCESS);
         }
-        return Result.failed(Status.MODIFY_FAILED);
+        return Result.failed(Status.SAVE_FAILED);
     }
 
     @DeleteMapping
@@ -98,6 +105,7 @@ public class AlertRuleController {
             example = "1")
     @ApiOperation("Delete alert rule")
     @Log(title = "Delete alert rule", businessType = BusinessType.DELETE)
+    @SaCheckPermission(PermissionConstants.REGISTRATION_ALERT_RULE_DELETE)
     public Result<Boolean> deleteAlertRuleById(@RequestParam Integer id) {
         if (alertRuleService.removeById(id)) {
             return Result.succeed(Status.DELETE_SUCCESS);

@@ -1,18 +1,20 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 import Icon, { DeleteTwoTone } from '@ant-design/icons';
@@ -30,6 +32,34 @@ export const DangerDeleteIcon = (props: any) => {
   return (
     <>
       <DeleteTwoTone {...props} twoToneColor={'red'} />
+    </>
+  );
+};
+
+export const PushpinIcon = (props: any) => {
+  return (
+    <>
+      <Icon
+        {...props}
+        style={{ ...IconStyle }}
+        component={() => (
+          <svg
+            className='icon'
+            viewBox='0 0 1293 1024'
+            version='1.1'
+            xmlns='http://www.w3.org/2000/svg'
+          >
+            <path
+              d='M304.061663 1024l-10.075639-558.583565 673.072886-298.727501 37.527055 84.565975-616.984683 273.834748 4.307805 239.256659 131.89401-166.298629 199.358866 217.963381L1116.921383 123.047108 189.774722 276.899361l105.06419 107.911966-66.293943 64.5448L0 214.595197 1293.252283 0l-552.497706 972.320793-211.935344-231.710773-224.75757 283.38998z'
+              fill='#1262B3'
+            ></path>
+            <path
+              d='M304.061663 1024l-10.075639-558.583565 673.072886-298.727501 37.527055 84.565975-616.984683 273.834748 4.307805 239.256659 98.154354-123.769894 72.480992 57.490407-258.48277 325.933171z'
+              fill='#FF584D'
+            ></path>
+          </svg>
+        )}
+      />
     </>
   );
 };
@@ -620,6 +650,33 @@ export const ResourceIcon = (props: any) => {
               d='M808.533333 535.466667h-187.733333c-46.933333 0-85.333333 38.4-85.333333 85.333333V810.666667c0 46.933333 38.4 85.333333 85.333333 85.333333h187.733333c46.933333 0 85.333333-38.4 85.333334-85.333333v-189.866667c0-46.933333-36.266667-85.333333-85.333334-85.333333zM832 795.733333c0 21.333333-17.066667 36.266667-36.266667 36.266667h-162.133333c-19.2 0-36.266667-17.066667-36.266667-36.266667v-162.133333c0-21.333333 17.066667-36.266667 36.266667-36.266667h162.133333c21.333333 0 36.266667 17.066667 36.266667 36.266667v162.133333z'
               fill='#0171F1'
             ></path>
+          </svg>
+        )}
+      />
+    </>
+  );
+};
+
+export const ApprovalIcon = (props: any) => {
+  const size = props.size || defaultSvgSize;
+
+  return (
+    <>
+      <Icon
+        {...props}
+        style={{ ...IconStyle }}
+        component={() => (
+          <svg
+            className='icon'
+            viewBox='0 0 1024 1024'
+            version='1.1'
+            xmlns='http://www.w3.org/2000/svg'
+            width={size}
+            height={size}
+          >
+            <path
+              fill = '#1890FF'
+              d = "M812 618.5H692c-6.9-4.8-13.4-10.3-19.3-16.4-24.5-25.2-26-46.8-25.5-54.9l0.1-5.6v-0.2c0-2.4 3.9-13.9 13.7-30.6 3.7-6.3 7.6-12.5 11.7-18.6 8.9-13.5 18.6-26.7 28.6-39.3 35-41.7 54.2-94.8 54.2-149.4 0-127.8-103-232.8-234.5-239h-17.9c-132.1 6.2-235.7 111.2-235.7 239 0.1 54.9 19.5 108.2 54.6 150.2l1.8 2.3c9.6 12.2 18.7 24.8 27.4 37.7 17.5 26.6 24.6 44.4 24.4 47.6v5.7c0.5 8-0.9 29.2-24.2 54l-1.4 1.4c-5.5 5.7-11.9 11.2-19.2 16.2H211.2c-79.9-0.1-115.5 31.2-115.5 101.4v156.2c0 22.1 8.6 42.9 24.3 58.6 15.7 15.5 36.4 24.2 58.4 24.2l666.2-1.4c45.6-0.2 82.5-37.1 82.5-82.7V720c0.1-70.2-35.4-101.6-115.1-101.5zM156.9 876.2V720.1c0-18.9 2.4-27.8 8.9-32.9 7-5.4 19.8-7.6 45.4-7.6h138l7.4-4.8c13.6-8.5 26.2-18.6 37.5-30 39.8-41 43.9-80.9 42.8-101.3 0.8-20.9-9.6-46-34.5-83.9a630.37 630.37 0 0 0-33.7-46c-25.7-31-39.8-70-39.9-110.3 0-95 77.3-173.1 175.9-177.8h14.8c98 4.7 174.7 82.7 174.7 177.7 0 40.4-14.3 79.5-40.2 110.5-11.4 14.3-22.3 29.2-32.4 44.4-4.7 7.1-9.2 14.4-13.5 21.8-16 27.6-22.6 46.6-22 63.6-1.1 20.3 3 60.2 42.7 101.2 11.3 11.5 23.9 21.6 37.5 30.2l7.6 4.8h138.5c49 0 53.6 7.1 53.6 40.3v154.8c0 5.7-2.2 11.1-6.3 15.2-4 4-9.5 6.3-15.2 6.3l-666.2 1.4c-5.7 0-11.2-2.2-15.2-6.3-3.9-3.9-6.1-9.4-6.2-15.2z m0 0M351 767.6h321.7v61.3H351z"/>
           </svg>
         )}
       />

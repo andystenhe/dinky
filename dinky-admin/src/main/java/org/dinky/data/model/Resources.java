@@ -20,6 +20,8 @@
 package org.dinky.data.model;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -33,16 +35,23 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 
+import cn.hutool.core.bean.BeanUtil;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
 /** @TableName dinky_resources */
+@EqualsAndHashCode(callSuper = true)
 @TableName(value = "dinky_resources")
-@Getter
-@Setter
+@Data
 @ApiModel(value = "Resources", description = "Resource Information")
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Resources extends Model<Resources> {
 
     @TableId(type = IdType.AUTO)
@@ -118,4 +127,28 @@ public class Resources extends Model<Resources> {
 
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;
+
+    @TableField(exist = false)
+    @ApiModelProperty(value = "Children", required = true, dataType = "List<Resources>", example = "[]")
+    private List<Resources> children = new ArrayList<>();
+
+    @TableField(exist = false)
+    @ApiModelProperty(
+            value = "Is Leaf",
+            dataType = "boolean",
+            example = "false",
+            notes = "Indicates whether the tree node is a leaf node (true/false)")
+    private boolean isLeaf;
+
+    @TableField(fill = FieldFill.INSERT)
+    @ApiModelProperty(value = "Creator", required = true, dataType = "Integer", example = "creator")
+    private Integer creator;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    @ApiModelProperty(value = "Updater", required = true, dataType = "Integer", example = "updater")
+    private Integer updater;
+
+    public static Resources of(ResourcesVO resourcesVO) {
+        return BeanUtil.toBean(resourcesVO, Resources.class);
+    }
 }

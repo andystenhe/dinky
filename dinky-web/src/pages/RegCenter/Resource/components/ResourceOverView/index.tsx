@@ -1,102 +1,101 @@
 /*
  *
- *   Licensed to the Apache Software Foundation (ASF) under one or more
- *   contributor license agreements.  See the NOTICE file distributed with
- *   this work for additional information regarding copyright ownership.
- *   The ASF licenses this file to You under the Apache License, Version 2.0
- *   (the "License"); you may not use this file except in compliance with
- *   the License.  You may obtain a copy of the License at
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  *
  */
 
 import RightContextMenu from '@/components/RightContextMenu';
 import { AuthorizedObject, useAccess } from '@/hooks/useAccess';
-import { RIGHT_CONTEXT_MENU } from '@/pages/RegCenter/Resource/components/constants';
+import {
+  ResourceRightMenuKey,
+  RIGHT_CONTEXT_FILE_MENU,
+  RIGHT_CONTEXT_FOLDER_MENU
+} from '@/pages/RegCenter/Resource/components/constants';
 import FileShow from '@/pages/RegCenter/Resource/components/FileShow';
 import FileTree from '@/pages/RegCenter/Resource/components/FileTree';
 import ResourceModal from '@/pages/RegCenter/Resource/components/ResourceModal';
 import ResourcesUploadModal from '@/pages/RegCenter/Resource/components/ResourcesUploadModal';
-import { handleOption, handleRemoveById, queryDataByParams } from '@/services/BusinessCrud';
+import { CONFIG_MODEL_ASYNC, SysConfigStateType } from '@/pages/SettingCenter/GlobalSetting/model';
+import { SettingConfigKeyEnum } from '@/pages/SettingCenter/GlobalSetting/SettingOverView/constants';
+import {
+  handleGetOption,
+  handleOption,
+  handleRemoveById,
+  queryDataByParams
+} from '@/services/BusinessCrud';
 import { API_CONSTANTS } from '@/services/endpoints';
+import { ResourceInfo } from '@/types/RegCenter/data';
 import { InitResourceState } from '@/types/RegCenter/init.d';
 import { ResourceState } from '@/types/RegCenter/state.d';
+import { handleCopyToClipboard, unSupportView } from '@/utils/function';
+import { l } from '@/utils/intl';
+import { SplitPane } from '@andrewray/react-multi-split-pane';
+import { Pane } from '@andrewray/react-multi-split-pane/dist/lib/Pane';
+import { WarningOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
+import { history } from '@umijs/max';
+import { useAsyncEffect } from 'ahooks';
+import { Button, Modal, Result } from 'antd';
 import { MenuInfo } from 'rc-menu/es/interface';
-import { Resizable } from 're-resizable';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { connect } from 'umi';
 
-export type Resource = {
-  id: number;
-  fileName: string;
-  description: string;
-  type?: string;
-};
+const ResourceOverView: React.FC<connect> = (props) => {
+  const { dispatch, enableResource, resourcePhysicalDelete } = props;
 
-const ResourceOverView: React.FC = () => {
   const [resourceState, setResourceState] = useState<ResourceState>(InitResourceState);
 
   const [editModal, setEditModal] = useState<string>('');
+  const refObject = useRef<HTMLDivElement>(null);
 
   const [uploadValue] = useState({
-    url: API_CONSTANTS.RESOURCE_UPLOAD,
+    url: API_CONSTANTS.BASE_URL + API_CONSTANTS.RESOURCE_UPLOAD,
     pid: '',
     description: ''
   });
 
-  const updateTreeData = (list: any[], key: React.Key, children: any[]): any[] =>
-    list.map((node) => {
-      if (node.path === key) {
-        return { ...node, children };
-      }
-      if (node.children) {
-        return {
-          ...node,
-          children: updateTreeData(node.children, key, children)
-        };
-      }
-      return node;
-    });
-
-  const refreshTreeData = async (pid: number, path: string) => {
-    const data = await queryDataByParams<any[]>(API_CONSTANTS.RESOURCE_SHOW_TREE, {
-      pid: pid
-    });
-    setResourceState((prevState) => ({
-      ...prevState,
-      treeData: updateTreeData(prevState.treeData, path, data ?? [])
-    }));
-  };
-
   const refreshTree = async () => {
-    await queryDataByParams<any[]>(API_CONSTANTS.RESOURCE_SHOW_TREE, { pid: -1 }).then((res) =>
+    await queryDataByParams<ResourceInfo[]>(API_CONSTANTS.RESOURCE_SHOW_TREE).then((res) =>
       setResourceState((prevState) => ({ ...prevState, treeData: res ?? [] }))
     );
   };
 
   useEffect(() => {
-    refreshTree();
+    dispatch({
+      type: CONFIG_MODEL_ASYNC.queryResourceConfig,
+      payload: SettingConfigKeyEnum.RESOURCE.toLowerCase()
+    });
   }, []);
+
+  useEffect(() => {
+    // if enableResource is true, then refresh the tree, otherwise do nothing
+    if (enableResource) {
+      refreshTree();
+    }
+  }, [enableResource]);
 
   /**
    * query content by id
    * @type {(id: number) => Promise<void>}
    */
-  const queryContent = useCallback(
-    async (id: number) => {
-      await queryDataByParams<string>(API_CONSTANTS.RESOURCE_GET_CONTENT_BY_ID, {
-        id
-      }).then((res) => setResourceState((prevState) => ({ ...prevState, content: res ?? '' })));
-    },
-    [resourceState.clickedNode]
-  );
+  const queryContent: (id: number) => Promise<void> = useCallback(async (id: number) => {
+    await queryDataByParams<string>(API_CONSTANTS.RESOURCE_GET_CONTENT_BY_ID, {
+      id
+    }).then((res) => setResourceState((prevState) => ({ ...prevState, content: res ?? '' })));
+  }, []);
 
   /**
    * the node click event
@@ -105,28 +104,14 @@ const ResourceOverView: React.FC = () => {
    */
   const handleNodeClick = async (info: any): Promise<void> => {
     const {
-      node: { id, isLeaf, key },
+      node: { id, isLeaf, key, name },
       node
     } = info;
     setResourceState((prevState) => ({ ...prevState, selectedKeys: [key], clickedNode: node }));
-    if (isLeaf) {
+    if (isLeaf && !unSupportView(name)) {
       await queryContent(id);
     } else {
       setResourceState((prevState) => ({ ...prevState, content: '' }));
-    }
-  };
-  const getSelectedNode = () => {
-    const indexes = (resourceState.rightClickedNode.pos.split('-') as string[]).map((x) =>
-      parseInt(x)
-    );
-    if (indexes.length === 1) {
-      return resourceState.treeData[indexes[0]];
-    } else {
-      let temp = resourceState.treeData[indexes[0]];
-      for (let i = 1; i < indexes.length - 1; i++) {
-        temp = temp.children[indexes[i]];
-      }
-      return temp;
     }
   };
 
@@ -135,7 +120,7 @@ const ResourceOverView: React.FC = () => {
    */
   const handleCreateFolder = () => {
     if (resourceState.rightClickedNode) {
-      setEditModal('createFolder');
+      setEditModal(ResourceRightMenuKey.CREATE_FOLDER);
       const { id } = resourceState.rightClickedNode;
       setResourceState((prevState) => ({
         ...prevState,
@@ -149,19 +134,13 @@ const ResourceOverView: React.FC = () => {
     if (resourceState.rightClickedNode) {
       uploadValue.pid = resourceState.rightClickedNode.id;
       // todo: upload
-      setResourceState((prevState) => ({ ...prevState, uploadOpen: true }));
+      setResourceState((prevState) => ({ ...prevState, uploadOpen: true, contextMenuOpen: false }));
     }
   };
 
-  const getSelectedParentNode = () => {
-    const indexes = (resourceState.rightClickedNode.pos.split('-') as string[]).map((x) =>
-      parseInt(x)
-    );
-    let temp = resourceState.treeData[indexes[0]];
-    for (let i = 1; i < indexes.length - 2; i++) {
-      temp = temp.children[indexes[i]];
-    }
-    return { node: temp, index: indexes[indexes.length - 2] };
+  const realDelete = async () => {
+    await handleRemoveById(API_CONSTANTS.RESOURCE_REMOVE, resourceState.rightClickedNode.id);
+    await refreshTree();
   };
 
   /**
@@ -169,10 +148,16 @@ const ResourceOverView: React.FC = () => {
    */
   const handleDelete = async () => {
     if (resourceState.rightClickedNode) {
-      await handleRemoveById(API_CONSTANTS.RESOURCE_REMOVE, resourceState.rightClickedNode.id);
-      // await refreshTree()
-      const { node, index } = getSelectedParentNode();
-      node.children.splice(index, 1);
+      setResourceState((prevState) => ({ ...prevState, contextMenuOpen: false }));
+      if (resourcePhysicalDelete) {
+        Modal.confirm({
+          title: l('rc.resource.delete'),
+          content: l('rc.resource.deleteConfirm'),
+          onOk: async () => realDelete()
+        });
+      } else {
+        await realDelete();
+      }
     }
   };
 
@@ -181,7 +166,7 @@ const ResourceOverView: React.FC = () => {
    */
   const handleRename = () => {
     if (resourceState.rightClickedNode) {
-      setEditModal('rename');
+      setEditModal(ResourceRightMenuKey.RENAME);
       const { id, name, desc } = resourceState.rightClickedNode;
       setResourceState((prevState) => ({
         ...prevState,
@@ -191,29 +176,45 @@ const ResourceOverView: React.FC = () => {
       }));
     }
   };
-  const handleRefresh = async () => {
-    if (resourceState.rightClickedNode) {
-      // const {id, name, desc, path} = rightClickedNode;
-      //todo refresh
-    }
-  };
 
-  const handleMenuClick = (node: MenuInfo) => {
+  const handleMenuClick = async (node: MenuInfo) => {
+    const { fullInfo } = resourceState.rightClickedNode;
     switch (node.key) {
-      case 'createFolder':
+      case ResourceRightMenuKey.CREATE_FOLDER:
         handleCreateFolder();
         break;
-      case 'upload':
+      case ResourceRightMenuKey.UPLOAD:
         handleUpload();
         break;
-      case 'delete':
-        handleDelete();
+      case ResourceRightMenuKey.DELETE:
+        await handleDelete();
         break;
-      case 'rename':
+      case ResourceRightMenuKey.RENAME:
         handleRename();
         break;
-      case 'refresh':
-        handleRefresh();
+      case ResourceRightMenuKey.COPY_TO_ADD_CUSTOM_JAR:
+        if (fullInfo) {
+          const fillValue = `ADD CUSTOMJAR 'rs:${fullInfo.fullName}';`;
+          await handleCopyToClipboard(fillValue);
+        }
+        break;
+      case ResourceRightMenuKey.COPY_TO_ADD_JAR:
+        if (fullInfo) {
+          const fillValue = `ADD JAR 'rs:${fullInfo.fullName}';`;
+          await handleCopyToClipboard(fillValue);
+        }
+        break;
+      case ResourceRightMenuKey.COPY_TO_ADD_FILE:
+        if (fullInfo) {
+          const fillValue = `ADD FILE 'rs:${fullInfo.fullName}';`;
+          await handleCopyToClipboard(fillValue);
+        }
+        break;
+      case ResourceRightMenuKey.COPY_TO_ADD_RS_PATH:
+        if (fullInfo) {
+          const fillValue = `rs:${fullInfo.fullName}`;
+          await handleCopyToClipboard(fillValue);
+        }
         break;
       default:
         break;
@@ -225,8 +226,14 @@ const ResourceOverView: React.FC = () => {
    * @param info
    */
   const handleRightClick = (info: any) => {
-    // 获取右键点击的节点信息
+    // Obtain the node information for right-click
     const { node, event } = info;
+
+    // Determine if the position of the right button exceeds the screen. If it exceeds the screen, set it to the maximum value of the screen offset upwards by 75 (it needs to be reasonably set according to the specific number of right button menus)
+    if (event.clientY + 150 > window.innerHeight) {
+      event.clientY = window.innerHeight - 75;
+    }
+
     setResourceState((prevState) => ({
       ...prevState,
       selectedKeys: [node.key],
@@ -234,43 +241,60 @@ const ResourceOverView: React.FC = () => {
       contextMenuOpen: true,
       contextMenuPosition: {
         ...prevState.contextMenuPosition,
-        left: event.clientX + 20,
-        top: event.clientY + 20
+        top: event.clientY + 5,
+        left: event.clientX + 10,
+        screenX: event.screenX,
+        screenY: event.screenY
       }
     }));
+  };
+
+  const handleSync = async () => {
+    Modal.confirm({
+      title: l('rc.resource.sync'),
+      content: l('rc.resource.sync.confirm'),
+      onOk: async () => {
+        await handleGetOption(API_CONSTANTS.RESOURCE_SYNC_DATA, l('rc.resource.sync'), {});
+        await refreshTree();
+      }
+    });
   };
 
   /**
    * the rename cancel
    */
-  const handleModalCancel = () => {
+  const handleModalCancel = async () => {
     setResourceState((prevState) => ({ ...prevState, editOpen: false }));
+    await refreshTree();
   };
 
   /**
    * the rename ok
    */
-  const handleModalSubmit = async (value: Partial<Resource>) => {
-    if (editModal === 'createFolder') {
-      const d = (
-        await handleOption(API_CONSTANTS.RESOURCE_CREATE_FOLDER, '创建文件夹', {
-          ...value
-        })
-      ).datas;
-      if (getSelectedNode().children) {
-        getSelectedNode().children.push(d);
-      } else {
-        getSelectedNode().children = [d];
-      }
-      setResourceState((prevState) => ({ ...prevState, editOpen: false }));
-    } else if (editModal === 'rename') {
-      await handleOption(API_CONSTANTS.RESOURCE_RENAME, '重命名', { ...value });
-      getSelectedNode().fileName = value.fileName;
-      getSelectedNode().name = value.fileName;
+  const handleModalSubmit = async (value: Partial<ResourceInfo>) => {
+    const { id: pid } = resourceState.rightClickedNode;
+    if (editModal === ResourceRightMenuKey.CREATE_FOLDER) {
+      await handleOption(
+        API_CONSTANTS.RESOURCE_CREATE_FOLDER,
+        l('right.menu.createFolder'),
+        {
+          ...value,
+          pid
+        },
+        () => handleModalCancel()
+      );
+    } else if (editModal === ResourceRightMenuKey.RENAME) {
+      await handleOption(
+        API_CONSTANTS.RESOURCE_RENAME,
+        l('right.menu.rename'),
+        { ...value, pid },
+        () => handleModalCancel()
+      );
     }
   };
-  const handleUploadCancel = () => {
+  const handleUploadCancel = async () => {
     setResourceState((prevState) => ({ ...prevState, uploadOpen: false }));
+    await refreshTree();
   };
 
   /**
@@ -282,79 +306,133 @@ const ResourceOverView: React.FC = () => {
     // todo: save content
   };
 
-  const asyncLoadData = async ({ children, path, id }: any) => {
-    if (children.length > 0) {
-      return;
-    }
-    await refreshTreeData(id, path);
-  };
-
   const access = useAccess();
+
+  const renderRightMenu = () => {
+    if (!resourceState.rightClickedNode.isLeaf) {
+      return RIGHT_CONTEXT_FOLDER_MENU.filter(
+        (menu) => !menu.path || !!AuthorizedObject({ path: menu.path, children: menu, access })
+      );
+    }
+    return RIGHT_CONTEXT_FILE_MENU.filter(
+      (menu) => !menu.path || !!AuthorizedObject({ path: menu.path, children: menu, access })
+    );
+  };
 
   /**
    * render
    */
   return (
     <>
-      <ProCard size={'small'}>
-        <Resizable
-          defaultSize={{
-            width: 500,
-            height: '100%'
-          }}
-          minWidth={200}
-          maxWidth={1200}
-        >
-          <ProCard ghost hoverable colSpan={'18%'} className={'siderTree schemaTree'}>
-            <FileTree
-              loadData={asyncLoadData}
-              selectedKeys={resourceState.selectedKeys}
-              treeData={resourceState.treeData}
-              onRightClick={handleRightClick}
-              onNodeClick={(info: any) => handleNodeClick(info)}
-            />
-            <RightContextMenu
-              contextMenuPosition={resourceState.contextMenuPosition}
-              open={resourceState.contextMenuOpen}
-              openChange={() =>
-                setResourceState((prevState) => ({ ...prevState, contextMenuOpen: false }))
-              }
-              items={RIGHT_CONTEXT_MENU().filter(
-                (menu) =>
-                  !!!menu.path || !!AuthorizedObject({ path: menu.path, children: menu, access })
-              )}
-              onClick={handleMenuClick}
-            />
-          </ProCard>
-        </Resizable>
-        <ProCard.Divider type={'vertical'} />
-        <ProCard ghost hoverable className={'schemaTree'}>
-          <FileShow
-            onChange={handleContentChange}
-            code={resourceState.content}
-            item={resourceState.clickedNode}
+      {!enableResource ? (
+        <ProCard ghost size={'small'} bodyStyle={{ height: parent.innerHeight - 80 }}>
+          <Result
+            status='warning'
+            style={{ alignItems: 'center', justifyContent: 'center' }}
+            icon={<WarningOutlined />}
+            title={l('rc.resource.enable')}
+            subTitle={l('rc.resource.enable.tips')}
+            extra={
+              <Button
+                onClick={() => {
+                  history.push('/settings/globalsetting');
+                }}
+                type='primary'
+                key='globalsetting-to-jump'
+              >
+                {l('menu.settings')}
+              </Button>
+            }
           />
         </ProCard>
-      </ProCard>
-      {resourceState.editOpen && (
-        <ResourceModal
-          title={editModal}
-          formValues={resourceState.value}
-          onOk={handleModalSubmit}
-          onClose={handleModalCancel}
-          visible={resourceState.editOpen}
-        />
-      )}
-      {resourceState.uploadOpen && (
-        <ResourcesUploadModal
-          onUpload={uploadValue}
-          visible={resourceState.uploadOpen}
-          onOk={handleUploadCancel}
-          onClose={handleUploadCancel}
-        />
+      ) : (
+        <>
+          <ProCard ghost size={'small'} bodyStyle={{ height: parent.innerHeight - 80 }}>
+            <SplitPane
+              split={'vertical'}
+              defaultSizes={[200, 500]}
+              minSize={200}
+              className={'split-pane'}
+            >
+              <Pane
+                className={'split-pane'}
+                forwardRef={refObject}
+                minSize={200}
+                size={200}
+                split={'horizontal'}
+              >
+                <ProCard
+                  hoverable
+                  boxShadow
+                  bodyStyle={{ height: parent.innerHeight - 80 }}
+                  colSpan={'18%'}
+                >
+                  <FileTree
+                    selectedKeys={resourceState.selectedKeys}
+                    treeData={resourceState.treeData}
+                    onRightClick={handleRightClick}
+                    onNodeClick={(info: any) => handleNodeClick(info)}
+                    onSync={handleSync}
+                  />
+                  <RightContextMenu
+                    contextMenuPosition={resourceState.contextMenuPosition}
+                    open={resourceState.contextMenuOpen}
+                    openChange={() =>
+                      setResourceState((prevState) => ({ ...prevState, contextMenuOpen: false }))
+                    }
+                    items={renderRightMenu()}
+                    onClick={handleMenuClick}
+                  />
+                </ProCard>
+              </Pane>
+
+              <Pane
+                className={'split-pane'}
+                forwardRef={refObject}
+                minSize={100}
+                size={100}
+                split={'horizontal'}
+              >
+                <ProCard hoverable bodyStyle={{ height: parent.innerHeight }}>
+                  <FileShow
+                    onChange={handleContentChange}
+                    code={resourceState.content}
+                    item={resourceState.clickedNode}
+                  />
+                </ProCard>
+              </Pane>
+            </SplitPane>
+          </ProCard>
+          {resourceState.editOpen && (
+            <ResourceModal
+              title={
+                editModal === 'createFolder'
+                  ? l('right.menu.createFolder')
+                  : editModal === 'rename'
+                    ? l('right.menu.rename')
+                    : ''
+              }
+              formValues={resourceState.value}
+              onOk={handleModalSubmit}
+              onClose={handleModalCancel}
+              visible={resourceState.editOpen}
+            />
+          )}
+          {resourceState.uploadOpen && (
+            <ResourcesUploadModal
+              onUpload={uploadValue}
+              visible={resourceState.uploadOpen}
+              onOk={handleUploadCancel}
+              onClose={handleUploadCancel}
+            />
+          )}
+        </>
       )}
     </>
   );
 };
 
-export default ResourceOverView;
+export default connect(({ SysConfig }: { SysConfig: SysConfigStateType }) => ({
+  enableResource: SysConfig.enableResource,
+  resourcePhysicalDelete: SysConfig.resourcePhysicalDelete
+}))(ResourceOverView);

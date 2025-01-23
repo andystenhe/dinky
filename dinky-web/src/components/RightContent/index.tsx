@@ -1,22 +1,24 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 import { ThemeCloud, ThemeStar } from '@/components/ThemeSvg/ThemeSvg';
-import { LANGUAGE_KEY, LANGUAGE_ZH, STORY_LANGUAGE, VERSION } from '@/services/constants';
+import { LANGUAGE_KEY, LANGUAGE_ZH, SERVER_VERSION, STORY_LANGUAGE } from '@/services/constants';
 import { THEME } from '@/types/Public/data';
 import { useLocalStorage } from '@/utils/hook/useLocalStorage';
 import { l } from '@/utils/intl';
@@ -27,6 +29,7 @@ import React, { useEffect, useState } from 'react';
 import useCookie from 'react-use-cookie';
 import screenfull from 'screenfull';
 import Avatar from './AvatarDropdown';
+import { getValueFromLocalStorage } from '@/utils/function';
 
 const GlobalHeaderRight: React.FC = () => {
   /**
@@ -41,13 +44,19 @@ const GlobalHeaderRight: React.FC = () => {
   useEffect(() => {
     setLangCache(language);
     (async () =>
-      await setInitialState((initialStateType) => ({
+      await setInitialState((initialStateType: any) => ({
         ...initialStateType,
         locale: language,
         settings: {
           ...initialStateType?.settings,
           navTheme: theme,
-          colorMenuBackground: theme === THEME.dark ? 'transparent' : '#fff'
+          token: {
+            ...initialStateType?.settings?.token,
+            sider: {
+              ...initialStateType?.settings?.token?.sider,
+              colorMenuBackground: theme === THEME.dark ? '#000' : '#fff'
+            }
+          }
         }
       })))();
   }, [theme, language]);
@@ -59,7 +68,7 @@ const GlobalHeaderRight: React.FC = () => {
   /**
    * css
    */
-  const actionClassName = {
+  const actionClassName: any = {
     display: 'flex',
     float: 'right',
     justifyContent: 'center',
@@ -106,7 +115,7 @@ const GlobalHeaderRight: React.FC = () => {
     style: fullScreenClassName
   };
 
-  const menuVersion = l('menu.version', '', { version: VERSION });
+  const menuVersion = l('menu.version', '', { version: getValueFromLocalStorage(SERVER_VERSION) });
   return (
     <>
       <Tooltip
@@ -114,9 +123,9 @@ const GlobalHeaderRight: React.FC = () => {
         title={<span>{fullScreen ? l('global.fullScreen') : l('global.fullScreen.exit')}</span>}
       >
         {fullScreen ? (
-          <FullscreenOutlined {...fullScreenProps} onClick={screenFull} />
+          <FullscreenOutlined {...(fullScreenProps as any)} onClick={screenFull} />
         ) : (
-          <FullscreenExitOutlined {...fullScreenProps} onClick={screenFull} />
+          <FullscreenExitOutlined {...(fullScreenProps as any)} onClick={screenFull} />
         )}
       </Tooltip>
       <Tooltip placement='bottom' title={<span>{menuVersion}</span>}>

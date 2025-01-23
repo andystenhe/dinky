@@ -21,15 +21,16 @@ package org.dinky.service.impl;
 
 import org.dinky.data.dto.GitAnalysisJarDTO;
 import org.dinky.data.dto.GitProjectDTO;
+import org.dinky.data.dto.GitProjectSortJarDTO;
 import org.dinky.data.dto.TreeNodeDTO;
+import org.dinky.data.exception.DinkyException;
 import org.dinky.data.model.GitProject;
-import org.dinky.data.params.GitProjectSortJarParams;
 import org.dinky.function.pool.UdfCodePool;
 import org.dinky.mapper.GitProjectMapper;
 import org.dinky.mybatis.service.impl.SuperServiceImpl;
-import org.dinky.process.exception.DinkyException;
 import org.dinky.service.GitProjectService;
 import org.dinky.utils.GitRepository;
+import org.dinky.utils.JsonUtils;
 import org.dinky.utils.TreeUtil;
 
 import java.io.File;
@@ -46,7 +47,6 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Opt;
 import cn.hutool.core.thread.ThreadUtil;
-import cn.hutool.json.JSONUtil;
 
 /**
  * @author ZackYoung
@@ -68,15 +68,13 @@ public class GitProjectServiceImpl extends SuperServiceImpl<GitProjectMapper, Gi
 
         GitProject gitProject = BeanUtil.toBean(gitProjectDTO, GitProject.class);
         if (gitProject.getOrderLine() == null) {
-            Integer maxOrderLine = Opt.ofNullable(baseMapper
-                            .selectOne(new LambdaQueryWrapper<GitProject>()
-                                    .orderByAsc(GitProject::getOrderLine)
-                                    .last(" limit 1"))
-                            .getOrderLine())
-                    .orElse(999);
+            Integer maxOrderLine = Opt.ofNullable(baseMapper.selectOne(new LambdaQueryWrapper<GitProject>()
+                            .orderByDesc(GitProject::getOrderLine)
+                            .last(" limit 1")))
+                    .map(GitProject::getOrderLine)
+                    .orElse(0);
             gitProject.setOrderLine(maxOrderLine + 1);
         }
-        BeanUtil.copyProperties(gitProjectDTO, gitProject);
 
         gitProject.insertOrUpdate();
 
@@ -93,14 +91,14 @@ public class GitProjectServiceImpl extends SuperServiceImpl<GitProjectMapper, Gi
         }
     }
 
-    /** @param gitProjectSortJarParams */
+    /** @param gitProjectSortJarDTO */
     @Override
-    public Boolean dragendSortJar(GitProjectSortJarParams gitProjectSortJarParams) {
-        GitProject gitProject = getById(gitProjectSortJarParams.getProjectId());
+    public Boolean dragendSortJar(GitProjectSortJarDTO gitProjectSortJarDTO) {
+        GitProject gitProject = getById(gitProjectSortJarDTO.getProjectId());
         if (gitProject == null) {
             return false;
         } else {
-            String jarClasses = JSONUtil.toJsonStr(gitProjectSortJarParams.getJars());
+            String jarClasses = JsonUtils.toJsonString(gitProjectSortJarDTO.getJars());
             gitProject.setUdfClassMapList(jarClasses);
             return updateById(gitProject);
         }
@@ -113,7 +111,7 @@ public class GitProjectServiceImpl extends SuperServiceImpl<GitProjectMapper, Gi
         Opt.ofEmptyAble(list).ifPresent(l -> {
             for (GitProject gitProject : list) {
                 List<GitAnalysisJarDTO> gitAnalysisJarList =
-                        JSONUtil.toList(gitProject.getUdfClassMapList(), GitAnalysisJarDTO.class);
+                        JsonUtils.toList(gitProject.getUdfClassMapList(), GitAnalysisJarDTO.class);
                 for (GitAnalysisJarDTO analysisJarDTO : gitAnalysisJarList) {
                     analysisJarDTO.getClassList().forEach(udf -> {
                         gitPool.computeIfAbsent(udf, k -> analysisJarDTO.getJarPath());

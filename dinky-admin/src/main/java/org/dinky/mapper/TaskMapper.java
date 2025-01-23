@@ -19,9 +19,9 @@
 
 package org.dinky.mapper;
 
-import org.dinky.data.model.JobModelOverview;
-import org.dinky.data.model.JobTypeOverView;
 import org.dinky.data.model.Task;
+import org.dinky.data.model.home.JobModelOverview;
+import org.dinky.data.model.home.JobTypeOverView;
 import org.dinky.mybatis.mapper.SuperMapper;
 
 import org.apache.ibatis.annotations.Mapper;
@@ -38,8 +38,6 @@ import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
  */
 @Mapper
 public interface TaskMapper extends SuperMapper<Task> {
-
-    Integer queryAllSizeByName(String name);
 
     List<Task> queryOnLineTaskByDoneStatus(
             @Param("parentIds") List<Integer> parentIds,

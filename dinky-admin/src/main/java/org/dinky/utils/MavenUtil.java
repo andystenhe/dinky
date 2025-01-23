@@ -19,9 +19,11 @@
 
 package org.dinky.utils;
 
+import org.dinky.data.enums.Status;
+import org.dinky.data.exception.BusException;
+import org.dinky.data.exception.DinkyException;
 import org.dinky.data.model.SystemConfiguration;
 import org.dinky.function.constant.PathConstant;
-import org.dinky.process.exception.DinkyException;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,7 +33,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
@@ -52,7 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class MavenUtil {
     static final String javaExecutor = FileUtil.file(
-                    FileUtil.file(SystemUtil.getJavaRuntimeInfo().getHomeDir()).getParentFile(), "/bin/java")
+                    FileUtil.file(SystemUtil.getJavaRuntimeInfo().getHomeDir()), "/bin/java")
             .getAbsolutePath();
     private static final String EXECTOR = SystemUtil.getOsInfo().isWindows() ? "mvn.cmd" : "mvn";
 
@@ -66,10 +67,6 @@ public class MavenUtil {
     private static final TemplateEngine ENGINE =
             new FreemarkerEngine(new TemplateConfig("templates", TemplateConfig.ResourceMode.CLASSPATH));
 
-    public static boolean build(String setting, String pom, String logFile, List<String> args) {
-        return build(setting, pom, null, null, logFile, CollUtil.newArrayList("package"), args, null);
-    }
-
     public static boolean build(
             String setting,
             String pom,
@@ -77,7 +74,7 @@ public class MavenUtil {
             String repositoryDir,
             String logFile,
             List<String> goals,
-            List<String> args,
+            String args,
             Consumer<String> consumer) {
         Assert.notBlank(pom, "the project pom file cannot be empty");
 
@@ -93,16 +90,19 @@ public class MavenUtil {
         } else {
             localRepositoryDirectory = repositoryDir;
         }
-        String mavenCommandLine = getMavenCommandLine(pom, mavenHome, localRepositoryDirectory, setting, goals, args);
-        Opt.ofNullable(consumer).ifPresent(c -> c.accept("Executing command: " + mavenCommandLine + "\n"));
+        String mavenCommandLine =
+                getMavenCommandLineByMvn(pom, mavenHome, localRepositoryDirectory, setting, goals, args);
+        Opt.ofNullable(consumer).ifPresent(c -> c.accept("Executing command: " + mavenCommandLine));
 
         int waitValue = RuntimeUtils.run(
                 mavenCommandLine,
                 s -> {
-                    s = DateUtil.date().toMsStr() + " - " + s + "\n";
-                    consumer.accept(s);
+                    s = DateUtil.date().toMsStr() + " - " + s;
+                    if (consumer != null) {
+                        consumer.accept(s);
+                    }
                 },
-                log::error);
+                consumer);
         return waitValue == 0;
     }
 
@@ -149,6 +149,32 @@ public class MavenUtil {
         return StrUtil.join(" ", commandLine);
     }
 
+    public static String getMavenCommandLineByMvn(
+            String projectDir,
+            String mavenHome,
+            String repositoryDir,
+            String settingsPath,
+            List<String> goals,
+            String args) {
+        projectDir = StrUtil.wrap(projectDir, "\"");
+        settingsPath = StrUtil.wrap(settingsPath, "\"");
+        List<String> commandLine = new LinkedList<>();
+
+        commandLine.add((mavenHome + "/bin/mvn").replaceAll(" ", "\" \""));
+        commandLine.add("-Dmaven.multiModuleProjectDirectory=" + projectDir);
+        commandLine.add("-Dmaven.home=" + StrUtil.wrap(mavenHome, "\""));
+        Opt.ofBlankAble(repositoryDir)
+                .ifPresent(x -> commandLine.add("-Dmaven.repo.local=" + StrUtil.wrap(repositoryDir, "\"")));
+        commandLine.add("-Dclassworlds.conf=" + StrUtil.wrap(mavenHome + "/bin/m2.conf", "\""));
+        commandLine.add("-s " + settingsPath);
+        commandLine.add("-f " + projectDir);
+        if (StrUtil.isNotBlank(args)) {
+            commandLine.add(StrUtil.wrap(StrUtil.replace(args, "\"", "\\*"), "\""));
+        }
+        commandLine.add(StrUtil.join(" ", goals));
+        return StrUtil.join(" ", commandLine);
+    }
+
     public static String getMavenVersion() {
         return RuntimeUtil.execForStr(getMavenHome() + "/bin/" + EXECTOR + " -v");
     }
@@ -156,11 +182,8 @@ public class MavenUtil {
     public static String getMavenHome() {
         String mavenHome = SystemUtil.get("MAVEN_HOME");
         if (StrUtil.isNotBlank(mavenHome)) {
-            return mavenHome;
-        }
-        String searchCmd = SystemUtil.getOsInfo().isWindows() ? "where" : "which";
-        mavenHome = RuntimeUtil.execForStr(searchCmd + " " + EXECTOR).trim();
-        if (StrUtil.isNotBlank(mavenHome)) {
+            String searchCmd = SystemUtil.getOsInfo().isWindows() ? "where" : "which";
+            mavenHome = RuntimeUtil.execForStr(searchCmd + " " + EXECTOR).trim();
             try {
                 return new File(mavenHome)
                         .toPath()
@@ -169,11 +192,11 @@ public class MavenUtil {
                         .getParent()
                         .toString();
             } catch (IOException e) {
-                e.printStackTrace();
-                return null;
+                throw new RuntimeException(e);
             }
+        } else {
+            throw new BusException(Status.GIT_MAVEN_HOME_NOT_SET);
         }
-        return null;
     }
 
     public static List<File> getJars(File pom) {

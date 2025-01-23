@@ -32,16 +32,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * Table
  *
  * @since 2021/7/19 23:27
  */
-@Getter
-@Setter
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class Table implements Serializable, Comparable<Table>, Cloneable {
 
     private static final long serialVersionUID = 4209205512472367171L;
@@ -63,7 +67,12 @@ public class Table implements Serializable, Comparable<Table>, Cloneable {
 
     private List<Column> columns;
 
-    public Table() {}
+    /** 驱动类型, @see org.dinky.metadata.enums.DriverType */
+    private String driverType;
+
+    public Table(String name) {
+        this.name = name;
+    }
 
     public Table(String name, String schema, List<Column> columns) {
         this.name = name;

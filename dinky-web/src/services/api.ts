@@ -1,18 +1,20 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 import { request } from '@umijs/max';
@@ -76,7 +78,7 @@ export async function getData(url: string, params?: any) {
 export async function removeData(url: string, params: [any]) {
   return request(url, {
     method: METHOD_CONSTANTS.DELETE,
-    data: {
+    params: {
       ...params
     }
   });
@@ -146,5 +148,33 @@ export async function getDataByRequestBody(url: string, body: any) {
   return request(url, {
     method: METHOD_CONSTANTS.POST,
     data: { ...body }
+  });
+}
+
+export async function download(url: string, params?: any) {
+  return request(url, {
+    method: METHOD_CONSTANTS.GET,
+    params: {
+      ...params
+    },
+    responseType: 'blob',
+    getResponse: true
+  }).then((res) => {
+    const { headers, data } = res;
+    const disposition = headers['content-disposition'];
+    const file_name =
+      disposition
+        .split(';')
+        .map((item) => item.trim())
+        .filter((item) => item.startsWith('filename='))
+        .map((item) => item.replaceAll('filename=', ''))
+        .shift() || '';
+    const blob = new Blob([data]);
+    const objectURL = URL.createObjectURL(blob);
+    let btn = document.createElement('a');
+    btn.download = file_name;
+    btn.href = objectURL;
+    btn.click();
+    URL.revokeObjectURL(objectURL);
   });
 }

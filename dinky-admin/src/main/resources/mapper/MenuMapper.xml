@@ -3,7 +3,7 @@
 <mapper namespace="org.dinky.mapper.MenuMapper">
 
 
-    <resultMap type="org.dinky.data.model.Menu" id="DinkySysMenuResult">
+    <resultMap type="org.dinky.data.model.rbac.Menu" id="DinkySysMenuResult">
         <id     property="id"         column="id"        />
         <result property="name"       column="name"      />
         <result property="parentId"       column="parent_id"      />
@@ -31,7 +31,7 @@
         order by parent_id, order_num
     </select>
 
-    <select id="selectMenuList" parameterType="org.dinky.data.model.Menu" resultMap="DinkySysMenuResult">
+    <select id="selectMenuList" parameterType="org.dinky.data.model.rbac.Menu" resultMap="DinkySysMenuResult">
         <include refid="selectMenuVo"/>
         <where>
             <if test="name != null and name != ''">
@@ -51,7 +51,7 @@
         order by m.parent_id, m.order_num
     </select>
 
-    <select id="selectMenuListByUserId" parameterType="org.dinky.data.model.Menu" resultMap="DinkySysMenuResult">
+    <select id="selectMenuListByUserId" parameterType="org.dinky.data.model.rbac.Menu" resultMap="DinkySysMenuResult">
         select distinct m.id, m.parent_id, m.`name`, m.path, m.component, m.display, ifnull(m.perms,'') as perms,
         m.type, m.icon, m.order_num, m.create_time
         from dinky_sys_menu m
@@ -102,7 +102,7 @@
         from dinky_sys_menu m
                  left join dinky_sys_role_menu rm on m.id = rm.menu_id
                  left join dinky_user_role ur on rm.role_id = ur.role_id
-                 left join dinky_role r on r.role_id = ur.role_id
+                 left join dinky_role r on r.id = ur.role_id
         where r.is_delete = 0 and ur.user_id = #{userId}
     </select>
 
@@ -112,7 +112,7 @@
         select count(1) from dinky_sys_menu where parent_id = #{menuId} limit 1
     </select>
 
-    <select id="checkMenuNameUnique" parameterType="org.dinky.data.model.Menu" resultMap="DinkySysMenuResult">
+    <select id="checkMenuNameUnique" parameterType="org.dinky.data.model.rbac.Menu" resultMap="DinkySysMenuResult">
         <include refid="selectMenuVo"/>
         where `name`=#{name} and parent_id = #{parentId}
     </select>
@@ -124,7 +124,7 @@
         where rm.role_id = #{roleId}
     </select>
 
-    <select id="selectForProTable" resultType="org.dinky.data.model.Menu">
+    <select id="selectForProTable" resultType="org.dinky.data.model.rbac.Menu">
         select
         a.*
         from
@@ -132,10 +132,10 @@
         <where>
             1=1
             <if test='param.path!=null and param.path!=""'>
-                and a.name like "%${param.name}%"
+                and a.path like concat('%', #{param.path}, '%')
             </if>
             <if test='param.name!=null and param.name!=""'>
-                and a.name like "%${param.name}%"
+                and a.name like concat('%', #{param.name}, '%')
             </if>
             <if test='param.type!=null and param.type!=""'>
                 and a.type = #{param.type}

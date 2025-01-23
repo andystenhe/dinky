@@ -20,13 +20,15 @@
 package org.dinky.service;
 
 import org.dinky.cluster.FlinkClusterInfo;
-import org.dinky.data.model.Cluster;
+import org.dinky.data.dto.ClusterInstanceDTO;
+import org.dinky.data.model.ClusterInstance;
+import org.dinky.job.JobConfig;
 import org.dinky.mybatis.service.ISuperService;
 
 import java.util.List;
 
 /** ClusterInstanceService */
-public interface ClusterInstanceService extends ISuperService<Cluster> {
+public interface ClusterInstanceService extends ISuperService<ClusterInstance> {
 
     /**
      * check cluster heartbeat status
@@ -40,63 +42,55 @@ public interface ClusterInstanceService extends ISuperService<Cluster> {
     /**
      * get job manager address
      *
-     * @param cluster {@link Cluster} cluster instance
+     * @param clusterInstance {@link ClusterInstance} clusterInstance instance
      * @return {@link String} eg: host1:8081
      */
-    String getJobManagerAddress(Cluster cluster);
+    String getJobManagerAddress(ClusterInstance clusterInstance);
 
     /**
      * build environment address
      *
-     * @param useRemote {@link Boolean} use remote or local
-     * @param id {@link Integer} cluster id
+     * @param config {@link JobConfig} the config of job
      * @return {@link String} eg: host1:8081
      */
-    String buildEnvironmentAddress(boolean useRemote, Integer id);
-
-    /**
-     * build remote environment address by cluster id
-     *
-     * @param id {@link Integer} cluster id
-     * @return {@link String} eg: host1:8081
-     */
-    String buildRemoteEnvironmentAddress(Integer id);
-
-    /**
-     * build local environment address
-     *
-     * @return {@link String} eg: host1:8081
-     */
-    String buildLocalEnvironmentAddress();
+    String buildEnvironmentAddress(JobConfig config);
 
     /**
      * list enabled cluster instances
      *
-     * @return {@link List<Cluster>}
+     * @return {@link List< ClusterInstance >}
      */
-    List<Cluster> listEnabledAllClusterInstance();
+    List<ClusterInstance> listEnabledAllClusterInstance();
 
     /**
      * list session enable cluster instances
      *
-     * @return {@link List<Cluster>}
+     * @return {@link List< ClusterInstance >}
      */
-    List<Cluster> listSessionEnable();
+    List<ClusterInstance> listSessionEnable();
 
     /**
      * list auto enable cluster instances
      *
-     * @return {@link List<Cluster>}
+     * @return {@link List< ClusterInstance >}
      */
-    List<Cluster> listAutoEnable();
+    List<ClusterInstance> listAutoEnable();
 
     /**
-     * register cluster instance
+     * register clusterInstance instance
      *
-     * @param cluster {@link Cluster} cluster instance
-     * @return {@link Cluster}
+     * @param clusterInstanceDTO {@link ClusterInstanceDTO} clusterInstanceDTO instance
+     * @return {@link ClusterInstance}
      */
-    Cluster registersCluster(Cluster cluster);
+    ClusterInstance registersCluster(ClusterInstanceDTO clusterInstanceDTO);
+
+    /**
+     * register clusterInstance instance
+     *
+     * @param clusterInstance {@link ClusterInstance} clusterInstanceDTO instance
+     * @return {@link ClusterInstance}
+     */
+    ClusterInstance registersCluster(ClusterInstance clusterInstance);
 
     /**
      * delete cluster instance by id
@@ -132,7 +126,22 @@ public interface ClusterInstanceService extends ISuperService<Cluster> {
      * deploy session cluster
      *
      * @param id {@link Integer} cluster id
-     * @return {@link Cluster}
+     * @return {@link ClusterInstance}
      */
-    Cluster deploySessionCluster(Integer id);
+    ClusterInstance deploySessionCluster(Integer id);
+
+    List<ClusterInstance> selectListByKeyWord(String searchKeyWord, boolean isAutoCreate);
+
+    /**
+     * check cluster instance has relationship
+     * @param id {@link Integer} alert template id
+     * @return {@link Boolean} true: has relationship, false: no relationship
+     */
+    boolean hasRelationShip(Integer id);
+
+    /**
+     * heartbeat
+     * @return {@link Long}
+     */
+    Long heartbeat();
 }

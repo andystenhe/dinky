@@ -1,31 +1,32 @@
 /*
  *
- *   Licensed to the Apache Software Foundation (ASF) under one or more
- *   contributor license agreements.  See the NOTICE file distributed with
- *   this work for additional information regarding copyright ownership.
- *   The ASF licenses this file to You under the Apache License, Version 2.0
- *   (the "License"); you may not use this file except in compliance with
- *   the License.  You may obtain a copy of the License at
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  *
  */
 
 import { BuildStepsState } from '@/pages/RegCenter/GitProject/data.d';
-import { Resource } from '@/pages/RegCenter/Resource/components/ResourceOverView';
 import { BaseState, ContextMenuPosition } from '@/types/Public/state.d';
 import {
   Alert,
   Cluster,
+  DataSources,
   Document,
   GitProject,
   GlobalVar,
+  ResourceInfo,
   UDFTemplate
 } from '@/types/RegCenter/data.d';
 
@@ -65,6 +66,7 @@ export interface ClusterConfigState extends BaseState {
  */
 export interface ClusterInstanceState extends BaseState {
   value: Partial<Cluster.Instance>;
+  instanceList: Cluster.Instance[];
 }
 
 /**
@@ -109,7 +111,7 @@ export interface GlobalVarState extends BaseState {
  * resource state
  */
 export interface ResourceState {
-  treeData: any[];
+  treeData: ResourceInfo[];
   content: string;
   clickedNode: any;
   rightClickedNode: any;
@@ -118,7 +120,7 @@ export interface ResourceState {
   selectedKeys: string[];
   editOpen: boolean;
   uploadOpen: boolean;
-  value: Partial<Resource>;
+  value: Partial<ResourceInfo>;
 }
 
 /**
@@ -127,4 +129,9 @@ export interface ResourceState {
 export interface TemplateState extends BaseState {
   value: Partial<UDFTemplate>;
   drawerOpen: boolean;
+}
+
+export interface DataSourceState extends BaseState {
+  value: Partial<DataSources.DataSource>;
+  isDetailPage: boolean;
 }

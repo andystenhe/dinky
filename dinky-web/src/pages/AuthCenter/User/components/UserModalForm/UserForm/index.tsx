@@ -1,4 +1,5 @@
 /*
+ *
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
  *  this work for additional information regarding copyright ownership.
@@ -30,6 +31,13 @@ type UserFormProps = {
 };
 const UserForm: React.FC<UserFormProps> = (props) => {
   const { values, form } = props;
+
+  const validatePhoneRules = [
+    {
+      pattern: /^1[3456789]\d{9}$/,
+      message: l('user.phoneFormat')
+    }
+  ];
 
   /**
    * user form render
@@ -70,6 +78,7 @@ const UserForm: React.FC<UserFormProps> = (props) => {
 
         <ProFormText
           name='mobile'
+          rules={validatePhoneRules}
           label={l('user.phone')}
           placeholder={l('user.phonePlaceholder')}
         />

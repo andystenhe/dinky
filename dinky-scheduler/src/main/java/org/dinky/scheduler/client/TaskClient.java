@@ -24,11 +24,13 @@ import org.dinky.scheduler.constant.Constants;
 import org.dinky.scheduler.exception.SchedulerException;
 import org.dinky.scheduler.model.TaskDefinition;
 import org.dinky.scheduler.model.TaskDefinitionLog;
+import org.dinky.scheduler.model.TaskGroup;
 import org.dinky.scheduler.model.TaskMainInfo;
 import org.dinky.scheduler.result.PageInfo;
 import org.dinky.scheduler.result.Result;
 import org.dinky.scheduler.utils.MyJSONUtil;
 import org.dinky.scheduler.utils.ParamUtil;
+import org.dinky.utils.JsonUtils;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -41,12 +43,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.TypeReference;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
 import cn.hutool.json.JSONObject;
 
-/** 任务定义 */
+/**
+ * 任务定义
+ */
 @Component
 public class TaskClient {
 
@@ -57,11 +63,11 @@ public class TaskClient {
      *
      * @param projectCode 项目编号
      * @param processName 工作流定义名称
-     * @param taskName 任务定义名称
+     * @param taskName    任务定义名称
      * @return {@link TaskMainInfo}
      */
-    public TaskMainInfo getTaskMainInfo(Long projectCode, String processName, String taskName) {
-        List<TaskMainInfo> lists = getTaskMainInfos(projectCode, processName, taskName);
+    public TaskMainInfo getTaskMainInfo(Long projectCode, String processName, String taskName, String taskType) {
+        List<TaskMainInfo> lists = getTaskMainInfos(projectCode, processName, taskName, taskType);
         for (TaskMainInfo list : lists) {
             if (list.getTaskName().equalsIgnoreCase(taskName)) {
                 return list;
@@ -75,10 +81,10 @@ public class TaskClient {
      *
      * @param projectCode 项目编号
      * @param processName 工作流定义名称
-     * @param taskName 任务定义名称
+     * @param taskName    任务定义名称
      * @return {@link List<TaskMainInfo>}
      */
-    public List<TaskMainInfo> getTaskMainInfos(Long projectCode, String processName, String taskName) {
+    public List<TaskMainInfo> getTaskMainInfos(Long projectCode, String processName, String taskName, String taskType) {
         Map<String, Object> map = new HashMap<>();
         map.put("projectCode", projectCode);
         String format = StrUtil.format(
@@ -89,9 +95,9 @@ public class TaskClient {
         Map<String, Object> pageParams = ParamUtil.getPageParams();
         pageParams.put("searchTaskName", taskName);
         pageParams.put("searchWorkflowName", processName);
-        pageParams.put("taskType", "DINKY");
+        pageParams.put("taskType", taskType);
 
-        String content = HttpRequest.get(format)
+        try (HttpResponse httpResponse = HttpRequest.get(format)
                 .header(
                         Constants.TOKEN,
                         SystemConfiguration.getInstances()
@@ -99,28 +105,25 @@ public class TaskClient {
                                 .getValue())
                 .form(pageParams)
                 .timeout(5000)
-                .execute()
-                .body();
+                .execute()) {
+            PageInfo<JSONObject> data = MyJSONUtil.toPageBean(httpResponse.body());
+            List<TaskMainInfo> lists = new ArrayList<>();
+            if (data == null || data.getTotalList() == null) {
+                return lists;
+            }
 
-        PageInfo<JSONObject> data = MyJSONUtil.toPageBean(content);
-        List<TaskMainInfo> lists = new ArrayList<>();
-        if (data == null || data.getTotalList() == null) {
+            for (JSONObject jsonObject : data.getTotalList()) {
+                lists.add(JsonUtils.toBean(jsonObject, TaskMainInfo.class));
+            }
             return lists;
         }
-
-        for (JSONObject jsonObject : data.getTotalList()) {
-            if (processName.equalsIgnoreCase(jsonObject.getStr("processDefinitionName"))) {
-                lists.add(MyJSONUtil.toBean(jsonObject, TaskMainInfo.class));
-            }
-        }
-        return lists;
     }
 
     /**
      * 根据编号查询
      *
      * @param projectCode 项目编号
-     * @param taskCode 任务编号
+     * @param taskCode    任务编号
      * @return {@link TaskDefinition}
      */
     public TaskDefinition getTaskDefinition(Long projectCode, Long taskCode) {
@@ -132,17 +135,17 @@ public class TaskClient {
                         + "/projects/{projectCode}/task-definition/{code}",
                 map);
 
-        String content = HttpRequest.get(format)
+        try (HttpResponse httpResponse = HttpRequest.get(format)
                 .header(
                         Constants.TOKEN,
                         SystemConfiguration.getInstances()
                                 .getDolphinschedulerToken()
                                 .getValue())
-                .timeout(5000)
-                .execute()
-                .body();
-
-        return MyJSONUtil.verifyResult(MyJSONUtil.toBean(content, new TypeReference<Result<TaskDefinition>>() {}));
+                .timeout(20000)
+                .execute()) {
+            return MyJSONUtil.verifyResult(
+                    MyJSONUtil.toBean(httpResponse.body(), new TypeReference<Result<TaskDefinition>>() {}));
+        }
     }
 
     /**
@@ -153,7 +156,7 @@ public class TaskClient {
      * @return {@link TaskDefinitionLog}
      */
     public TaskDefinitionLog createTaskDefinition(
-            Long projectCode, Long processCode, String upstreamCodes, String taskDefinitionJsonObj) {
+            Long projectCode, Long processCode, List<String> upstreamCodes, String taskDefinitionJsonObj) {
         Map<String, Object> map = new HashMap<>();
         map.put("projectCode", projectCode);
         String format = StrUtil.format(
@@ -163,13 +166,13 @@ public class TaskClient {
 
         Map<String, Object> pageParams = new HashMap<>();
         pageParams.put("processDefinitionCode", processCode);
-        if (StringUtils.isNotBlank(upstreamCodes)) {
-            pageParams.put("upstreamCodes", upstreamCodes);
+        if (CollUtil.isNotEmpty(upstreamCodes)) {
+            pageParams.put("upstreamCodes", StringUtils.join(upstreamCodes, ","));
         }
 
         pageParams.put("taskDefinitionJsonObj", taskDefinitionJsonObj);
 
-        String content = HttpRequest.post(format)
+        try (HttpResponse httpResponse = HttpRequest.post(format)
                 .header(
                         Constants.TOKEN,
                         SystemConfiguration.getInstances()
@@ -177,22 +180,22 @@ public class TaskClient {
                                 .getValue())
                 .form(pageParams)
                 .timeout(5000)
-                .execute()
-                .body();
-
-        return MyJSONUtil.verifyResult(MyJSONUtil.toBean(content, new TypeReference<Result<TaskDefinitionLog>>() {}));
+                .execute()) {
+            return MyJSONUtil.verifyResult(
+                    MyJSONUtil.toBean(httpResponse.body(), new TypeReference<Result<TaskDefinitionLog>>() {}));
+        }
     }
 
     /**
      * 修改任务定义
      *
-     * @param projectCode 项目编号
-     * @param taskCode 任务定义编号
+     * @param projectCode           项目编号
+     * @param taskCode              任务定义编号
      * @param taskDefinitionJsonObj 修改参数
      * @return {@link Long}
      */
     public Long updateTaskDefinition(
-            long projectCode, long taskCode, String upstreamCodes, String taskDefinitionJsonObj) {
+            long projectCode, long taskCode, List<String> upstreamCodes, String taskDefinitionJsonObj) {
         Map<String, Object> map = new HashMap<>();
         map.put("projectCode", projectCode);
         map.put("code", taskCode);
@@ -202,10 +205,12 @@ public class TaskClient {
                 map);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("upstreamCodes", upstreamCodes);
+        if (CollUtil.isNotEmpty(upstreamCodes)) {
+            params.put("upstreamCodes", StringUtils.join(upstreamCodes, ","));
+        }
         params.put("taskDefinitionJsonObj", taskDefinitionJsonObj);
 
-        String content = HttpRequest.put(format)
+        try (HttpResponse httpResponse = HttpRequest.put(format)
                 .header(
                         Constants.TOKEN,
                         SystemConfiguration.getInstances()
@@ -213,16 +218,17 @@ public class TaskClient {
                                 .getValue())
                 .form(params)
                 .timeout(5000)
-                .execute()
-                .body();
-        return MyJSONUtil.verifyResult(MyJSONUtil.toBean(content, new TypeReference<Result<Long>>() {}));
+                .execute()) {
+            return MyJSONUtil.verifyResult(
+                    MyJSONUtil.toBean(httpResponse.body(), new TypeReference<Result<Long>>() {}));
+        }
     }
 
     /**
      * 生成任务定义编号
      *
      * @param projectCode 项目编号
-     * @param genNum 生成个数
+     * @param genNum      生成个数
      * @return {@link List}
      */
     public List<Long> genTaskCodes(Long projectCode, int genNum) {
@@ -234,7 +240,8 @@ public class TaskClient {
                 map);
         Map<String, Object> params = new HashMap<>();
         params.put("genNum", genNum);
-        String content = HttpRequest.get(format)
+
+        try (HttpResponse httpResponse = HttpRequest.get(format)
                 .header(
                         Constants.TOKEN,
                         SystemConfiguration.getInstances()
@@ -242,10 +249,10 @@ public class TaskClient {
                                 .getValue())
                 .form(params)
                 .timeout(5000)
-                .execute()
-                .body();
-
-        return MyJSONUtil.verifyResult(MyJSONUtil.toBean(content, new TypeReference<Result<List<Long>>>() {}));
+                .execute()) {
+            return MyJSONUtil.verifyResult(
+                    MyJSONUtil.toBean(httpResponse.body(), new TypeReference<Result<List<Long>>>() {}));
+        }
     }
 
     /**
@@ -260,5 +267,33 @@ public class TaskClient {
             throw new SchedulerException("Failed to generate task definition number");
         }
         return codes.get(0);
+    }
+
+    /**
+     * 通过 projectCode 获得 DolphinScheduler 任务组列表
+     *
+     * @param projectCode projectCode
+     * @return  List<TaskGroup>
+     */
+    public List<TaskGroup> getTaskGroupList(Long projectCode) {
+        String url = SystemConfiguration.getInstances().getDolphinschedulerUrl().getValue()
+                + "/task-group/query-list-by-projectCode";
+        Map<String, Object> params = new HashMap<>();
+        params.put("projectCode", projectCode);
+        params.put("pageNo", 1);
+        params.put("pageSize", 100);
+
+        try (HttpResponse httpResponse = HttpRequest.get(url)
+                .header(
+                        Constants.TOKEN,
+                        SystemConfiguration.getInstances()
+                                .getDolphinschedulerToken()
+                                .getValue())
+                .form(params)
+                .timeout(5000)
+                .execute()) {
+            PageInfo<JSONObject> pageInfo = MyJSONUtil.toPageBean(httpResponse.body());
+            return MyJSONUtil.toBean(pageInfo.getTotalList().toString(), new TypeReference<List<TaskGroup>>() {});
+        }
     }
 }

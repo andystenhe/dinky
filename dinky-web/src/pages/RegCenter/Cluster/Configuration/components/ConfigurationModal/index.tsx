@@ -1,22 +1,23 @@
 /*
  *
- *   Licensed to the Apache Software Foundation (ASF) under one or more
- *   contributor license agreements.  See the NOTICE file distributed with
- *   this work for additional information regarding copyright ownership.
- *   The ASF licenses this file to You under the Apache License, Version 2.0
- *   (the "License"); you may not use this file except in compliance with
- *   the License.  You may obtain a copy of the License at
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  *
  */
 
+import { LoadingBtn } from '@/components/CallBackButton/LoadingBtn';
 import { FormContextValue } from '@/components/Context/FormContext';
 import ConfigurationForm from '@/pages/RegCenter/Cluster/Configuration/components/ConfigurationModal/ConfigurationForm';
 import { Cluster } from '@/types/RegCenter/data';
@@ -30,9 +31,10 @@ type ConfigurationModalProps = {
   onClose: () => void;
   value: Partial<Cluster.Config>;
   onSubmit: (values: Partial<Cluster.Config>) => void;
+  onHeartBeat: (values: Partial<Cluster.Config>) => void;
 };
-const InstanceModal: React.FC<ConfigurationModalProps> = (props) => {
-  const { visible, onClose, onSubmit, value } = props;
+export default (props: ConfigurationModalProps) => {
+  const { visible, onClose, onSubmit, value, onHeartBeat } = props;
 
   /**
    * init form
@@ -71,21 +73,45 @@ const InstanceModal: React.FC<ConfigurationModalProps> = (props) => {
   const submitForm = async () => {
     const fieldsValue = await form.validateFields();
     setSubmitting(true);
-    await onSubmit(fieldsValue);
+    onSubmit(fieldsValue);
     handleCancel();
   };
 
   /**
+   * handle test connect
+   * */
+  const handleTestConnect = async () => {
+    const fieldsValue = await form.validateFields();
+    onHeartBeat(fieldsValue);
+  };
+
+  /**
    * render footer
-   * @returns {[JSX.Element, JSX.Element]}
    */
   const renderFooter = () => {
     return [
       <Button key={'cancel'} onClick={() => handleCancel()}>
         {l('button.cancel')}
       </Button>,
-      <Button key={'finish'} loading={submitting} type='primary' onClick={() => submitForm()}>
-        {l('button.finish')}
+      <LoadingBtn
+        key={'test'}
+        props={{
+          size: 'middle',
+          type: 'primary',
+          style: { background: '#52c41a' }
+        }}
+        click={handleTestConnect}
+        title={l('button.test.connection')}
+      />,
+      <Button
+        key={'finish'}
+        loading={submitting}
+        type='primary'
+        htmlType={'submit'}
+        autoFocus
+        onClick={() => submitForm()}
+      >
+        {l('button.save')}
       </Button>
     ];
   };
@@ -97,11 +123,14 @@ const InstanceModal: React.FC<ConfigurationModalProps> = (props) => {
         open={visible}
         modalProps={{
           onCancel: handleCancel,
-          bodyStyle: {
-            maxHeight: '70vh',
-            overflowY: 'auto',
-            overflowX: 'hidden'
-          }
+          styles: {
+            body: {
+              maxHeight: '70vh',
+              overflowY: 'auto',
+              overflowX: 'hidden'
+            }
+          },
+          maskClosable: false
         }}
         title={value.id ? l('rc.cc.modify') : l('rc.cc.create')}
         submitter={{ render: () => [...renderFooter()] }}
@@ -113,5 +142,3 @@ const InstanceModal: React.FC<ConfigurationModalProps> = (props) => {
     </>
   );
 };
-
-export default InstanceModal;

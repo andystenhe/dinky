@@ -58,7 +58,7 @@ public enum Dialect {
         return value;
     }
 
-    public boolean equalsVal(String valueText) {
+    public boolean isDialect(String valueText) {
         return Asserts.isEqualsIgnoreCase(value, valueText);
     }
 
@@ -77,7 +77,7 @@ public enum Dialect {
      * @param value {@link Dialect}
      * @return If is flink sql, return false, otherwise return true.
      */
-    public static boolean notFlinkSql(String value) {
+    public static boolean isCommonSql(String value) {
         Dialect dialect = Dialect.get(value);
         switch (dialect) {
             case SQL:
@@ -104,6 +104,19 @@ public enum Dialect {
             case SCALA:
             case PYTHON:
                 return true;
+            default:
+                return false;
+        }
+    }
+
+    public static boolean isFlinkSql(String value, boolean includeFlinksqlEnv) {
+        Dialect dialect = Dialect.get(value);
+        switch (dialect) {
+            case FLINK_SQL:
+            case FLINK_JAR:
+                return true;
+            case FLINK_SQL_ENV:
+                return includeFlinksqlEnv;
             default:
                 return false;
         }

@@ -19,7 +19,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.dinky.mapper.UDFTemplateMapper">
 
-    <select id="selectForProTable" resultType="org.dinky.data.model.UDFTemplate">
+    <select id="selectForProTable" resultType="org.dinky.data.model.udf.UDFTemplate">
         select
          a.*
         from
@@ -27,16 +27,16 @@
         <where>
             1=1
             <if test='param.name!=null and param.name!=""'>
-                and `name` like '%${param.name}%'
+                and `name` like concat('%',#{param.name},'%')
             </if>
             <if test='param.codeType!=null and param.codeType!=""'>
-                and code_type = '${param.codeType}'
+                and code_type = #{param.codeType}
             </if>
             <if test='param.functionType!=null and param.functionType!=""'>
-                and function_type = '${param.functionType}'
+                and function_type = #{param.functionType}
             </if>
             <if test='param.templateCode!=null and param.templateCode!=""'>
-                and template_code like "%${param.templateCode}%"
+                and template_code like concat('%',#{param.templateCode},'%')
             </if>
             <if test='param.createTime!=null and param.createTime!=""'>
                 and create_time <![CDATA[>=]]> str_to_date( #{param.createTime},'%Y-%m-%d %H:%i:%s')

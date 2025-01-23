@@ -1,4 +1,5 @@
 /*
+ *
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
  *  this work for additional information regarding copyright ownership.
@@ -25,10 +26,11 @@ export type CircleButtonProps = {
   onClick?: () => void;
   title?: string;
   key?: string;
+  href?: string;
 };
 
 export const CircleBtn: React.FC<CircleButtonProps> = (props) => {
-  const { onClick, title, icon, loading } = props;
+  const { onClick, title, icon, loading, href } = props;
 
   return (
     <Button
@@ -39,6 +41,8 @@ export const CircleBtn: React.FC<CircleButtonProps> = (props) => {
       type={'text'}
       shape={'circle'}
       onClick={onClick}
+      href={href}
+      download=''
     />
   );
 };

@@ -22,13 +22,14 @@ import { EditBtn } from '@/components/CallBackButton/EditBtn';
 import { EnableSwitchBtn } from '@/components/CallBackButton/EnableSwitchBtn';
 import { PopconfirmDeleteBtn } from '@/components/CallBackButton/PopconfirmDeleteBtn';
 import CodeShow from '@/components/CustomEditor/CodeShow';
-import { Authorized } from '@/hooks/useAccess';
+import { Authorized, HasAuthority } from '@/hooks/useAccess';
 import GlobalVarDrawer from '@/pages/RegCenter/GlobalVar/components/GlobalVarDrawer';
 import GlobalVarModal from '@/pages/RegCenter/GlobalVar/components/GlobalVarModal';
 import { queryList } from '@/services/api';
 import { handleAddOrUpdate, handleRemoveById, updateDataByParam } from '@/services/BusinessCrud';
 import { PROTABLE_OPTIONS_PUBLIC, STATUS_ENUM, STATUS_MAPPING } from '@/services/constants';
 import { API_CONSTANTS } from '@/services/endpoints';
+import { PermissionConstants } from '@/types/Public/constants';
 import { Document, GlobalVar } from '@/types/RegCenter/data.d';
 import { InitGlobalVarState } from '@/types/RegCenter/init.d';
 import { GlobalVarState } from '@/types/RegCenter/state.d';
@@ -138,16 +139,15 @@ const GlobalVarProTable = () => {
       dataIndex: 'enabled',
       hideInSearch: true,
       width: '15vh',
+      hideInDescriptions: true,
       render: (_, record) => {
         return (
-          <Authorized key={record.id} path='/registration/fragment/enable'>
-            <EnableSwitchBtn
-              key={`${record.id}_enable`}
-              disabled={globalVarState.drawerOpen}
-              record={record}
-              onChange={() => handleChangeEnable(record)}
-            />
-          </Authorized>
+          <EnableSwitchBtn
+            key={`${record.id}_enable`}
+            disabled={!HasAuthority(PermissionConstants.REGISTRATION_FRAGMENT_EDIT)}
+            record={record}
+            onChange={() => handleChangeEnable(record)}
+          />
         );
       },
       filters: STATUS_MAPPING(),
@@ -172,13 +172,18 @@ const GlobalVarProTable = () => {
     },
     {
       title: l('global.table.operate'),
-      width: '10vh',
+      width: '8%',
+      fixed: 'right',
       valueType: 'option',
+      hideInDescriptions: true,
       render: (_, record) => [
-        <Authorized key={`${record.id}_edit`} path='/registration/fragment/edit'>
+        <Authorized key={`${record.id}_edit`} path={PermissionConstants.REGISTRATION_FRAGMENT_EDIT}>
           <EditBtn key={`${record.id}_edit`} onClick={() => handleClickEdit(record)} />
         </Authorized>,
-        <Authorized key={`${record.id}_delete`} path='/registration/fragment/delete'>
+        <Authorized
+          key={`${record.id}_delete`}
+          path={PermissionConstants.REGISTRATION_FRAGMENT_DELETE}
+        >
           <PopconfirmDeleteBtn
             key={`${record.id}_delete`}
             onClick={() => handleDeleteSubmit(record.id)}
@@ -201,7 +206,7 @@ const GlobalVarProTable = () => {
         loading={globalVarState.loading}
         {...PROTABLE_OPTIONS_PUBLIC}
         toolBarRender={() => [
-          <Authorized key='create' path='/registration/fragment/new'>
+          <Authorized key='create' path={PermissionConstants.REGISTRATION_FRAGMENT_ADD}>
             <CreateBtn
               key={'vartable'}
               onClick={() => setGlobalVarState((prevState) => ({ ...prevState, addedOpen: true }))}

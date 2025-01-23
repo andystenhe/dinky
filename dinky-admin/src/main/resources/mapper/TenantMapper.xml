@@ -4,7 +4,7 @@
     <sql id="baseSql">
         id,tenant_code,is_delete,note,create_time,update_time
     </sql>
-    <select id="selectForProTable" resultType="org.dinky.data.model.Tenant">
+    <select id="selectForProTable" resultType="org.dinky.data.model.rbac.Tenant">
         select
         <include refid="baseSql"/>
         from
@@ -12,7 +12,7 @@
         <where>
             1=1
             <if test='param.tenantCode!=null and param.tenantCode!=""'>
-                and tenant_code like "%${param.tenantCode}%"
+                and tenant_code like concat('%',#{param.tenantCode},'%')
             </if>
             <if test='param.createTime!=null and param.createTime!=""'>
                 and create_time <![CDATA[>=]]> str_to_date( #{param.createTime},'%Y-%m-%d %H:%i:%s')
@@ -28,7 +28,7 @@
             </if>
         </where>
     </select>
-    <select id="getTenantByIds" resultType="org.dinky.data.model.Tenant">
+    <select id="getTenantByIds" resultType="org.dinky.data.model.rbac.Tenant">
         select id
               ,tenant_code
               ,is_delete

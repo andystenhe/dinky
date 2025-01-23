@@ -21,11 +21,12 @@ package org.dinky.controller;
 
 import org.dinky.alert.AlertPool;
 import org.dinky.alert.AlertResult;
-import org.dinky.data.annotation.Log;
+import org.dinky.data.annotations.Log;
+import org.dinky.data.constant.PermissionConstants;
+import org.dinky.data.dto.AlertInstanceDTO;
 import org.dinky.data.enums.BusinessType;
 import org.dinky.data.enums.Status;
-import org.dinky.data.model.AlertInstance;
-import org.dinky.data.result.ProTableResult;
+import org.dinky.data.model.alert.AlertInstance;
 import org.dinky.data.result.Result;
 import org.dinky.service.AlertInstanceService;
 
@@ -40,22 +41,27 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.github.xiaoymin.knife4j.annotations.DynamicParameter;
 import com.github.xiaoymin.knife4j.annotations.DynamicResponseParameters;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/** AlertInstanceController */
+/**
+ * AlertInstanceController
+ */
 @Slf4j
 @RestController
 @Api(tags = "Alert Instance Controller")
 @RequestMapping("/api/alertInstance")
 @RequiredArgsConstructor
+@SaCheckLogin
 public class AlertInstanceController {
 
     private final AlertInstanceService alertInstanceService;
@@ -67,7 +73,7 @@ public class AlertInstanceController {
      * @return {@link Result} of {@link Void}
      * @throws Exception {@link Exception}
      */
-    @PutMapping
+    @PutMapping("/saveOrUpdate")
     @Log(title = "Insert OR Update AlertInstance", businessType = BusinessType.INSERT_OR_UPDATE)
     @ApiOperation("Insert OR Update AlertInstance")
     @ApiImplicitParam(
@@ -77,6 +83,12 @@ public class AlertInstanceController {
             paramType = "body",
             required = true,
             dataTypeClass = AlertInstance.class)
+    @SaCheckPermission(
+            value = {
+                PermissionConstants.REGISTRATION_ALERT_INSTANCE_ADD,
+                PermissionConstants.REGISTRATION_ALERT_INSTANCE_EDIT
+            },
+            mode = SaMode.OR)
     public Result<Void> saveOrUpdate(@RequestBody AlertInstance alertInstance) throws Exception {
         if (alertInstanceService.saveOrUpdate(alertInstance)) {
             AlertPool.remove(alertInstance.getName());
@@ -88,21 +100,12 @@ public class AlertInstanceController {
 
     /**
      * listAlertInstances
-     *
-     * @param para {@link JsonNode}
-     * @return {@link ProTableResult} of {@link AlertInstance}
+     * @return {@link Result} of {@link AlertInstance}
      */
-    @PostMapping
+    @GetMapping("/list")
     @ApiOperation("Query AlertInstance List")
-    @ApiImplicitParam(
-            name = "para",
-            value = "Query Condition",
-            dataType = "JsonNode",
-            paramType = "body",
-            required = true,
-            dataTypeClass = JsonNode.class)
-    public ProTableResult<AlertInstance> listAlertInstances(@RequestBody JsonNode para) {
-        return alertInstanceService.selectForProTable(para);
+    public Result<List<AlertInstance>> listAlertInstances(@RequestParam(value = "keyword") String keyword) {
+        return Result.succeed(alertInstanceService.selectListByKeyWord(keyword));
     }
 
     /**
@@ -121,6 +124,7 @@ public class AlertInstanceController {
             paramType = "query",
             required = true,
             dataTypeClass = Integer.class)
+    @SaCheckPermission(PermissionConstants.REGISTRATION_ALERT_INSTANCE_DELETE)
     public Result<Void> deleteAlertInstanceById(@RequestParam("id") Integer id) {
         if (alertInstanceService.deleteAlertInstance(id)) {
             return Result.succeed(Status.DELETE_SUCCESS);
@@ -145,6 +149,7 @@ public class AlertInstanceController {
             paramType = "query",
             required = true,
             dataTypeClass = Integer.class)
+    @SaCheckPermission(PermissionConstants.REGISTRATION_ALERT_INSTANCE_EDIT)
     public Result<Void> modifyAlertInstanceStatus(@RequestParam("id") Integer id) {
         if (alertInstanceService.modifyAlertInstanceStatus(id)) {
             return Result.succeed(Status.MODIFY_SUCCESS);
@@ -175,23 +180,23 @@ public class AlertInstanceController {
     /**
      * send test alert message
      *
-     * @param alertInstance {@link AlertInstance}
+     * @param alertInstanceDTO {@link AlertInstanceDTO}
      * @return {@link Result} of {@link Void}
      */
     @PostMapping("/sendTest")
     @Log(title = "Test Send To AlertInstance", businessType = BusinessType.TEST)
     @ApiOperation("Test Send To AlertInstance")
     @ApiImplicitParam(
-            name = "alertInstance",
-            value = "AlertInstance",
-            dataType = "AlertInstance",
+            name = "alertInstanceDTO",
+            value = "AlertInstanceDTO",
+            dataType = "AlertInstanceDTO",
             paramType = "body",
             required = true,
-            dataTypeClass = AlertInstance.class)
-    public Result<Void> sendAlertMsgTest(@RequestBody AlertInstance alertInstance) {
-        AlertResult alertResult = alertInstanceService.testAlert(alertInstance);
+            dataTypeClass = AlertInstanceDTO.class)
+    public Result<String> sendAlertMsgTest(@RequestBody AlertInstanceDTO alertInstanceDTO) {
+        AlertResult alertResult = alertInstanceService.testAlert(alertInstanceDTO);
         if (alertResult.getSuccess()) {
-            return Result.succeed(Status.SEND_TEST_SUCCESS);
+            return Result.succeed(alertResult.getMessage(), Status.SEND_TEST_SUCCESS);
         } else {
             return Result.failed(Status.SEND_TEST_FAILED);
         }

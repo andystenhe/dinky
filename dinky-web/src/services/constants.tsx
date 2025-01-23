@@ -1,18 +1,20 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 import { l } from '@/utils/intl';
@@ -24,11 +26,6 @@ import { ModalFormProps } from '@ant-design/pro-form/es/layouts/ModalForm';
 export const TENANT_ID = 'tenantId';
 
 /**
- * the platform version
- */
-export const VERSION = '1.0.0-SNAPSHOT';
-
-/**
  * the platform language
  */
 export const STORY_LANGUAGE = 'language';
@@ -36,8 +33,14 @@ export const LANGUAGE_KEY = 'umi_locale';
 export const LANGUAGE_ZH = 'zh-CN';
 export const LANGUAGE_EN = 'en-US';
 
+export const SERVER_VERSION = 'dinky_server_version';
+
+export const TOKEN_KEY = 'dinky-token';
+
 export const DATE_FORMAT = 'YYYY-MM-DD';
 export const DATETIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
+
+export const ENABLE_MODEL_TIP = 'enableModelTip';
 
 /**
  * REQUEST METHOD CONSTANTS
@@ -94,7 +97,7 @@ export const FORM_LAYOUT_PUBLIC = {
  * the modal form layout of public
  */
 export const MODAL_FORM_STYLE: any = {
-  width: '50%',
+  width: '55%',
   style: {
     maxHeight: '70vh',
     overflowY: 'auto'
@@ -107,6 +110,7 @@ export const PRO_LIST_CARD_META = {
   type: {},
   avatar: {},
   content: {},
+  description: {},
   actions: {
     cardActionProps: 'actions'
   }
@@ -128,10 +132,10 @@ export const PRO_LIST_CARD_OPTIONS = {
  */
 export const PROTABLE_OPTIONS_PUBLIC: any = {
   pagination: {
-    defaultPageSize: 12,
+    defaultPageSize: 10,
     hideOnSinglePage: true,
     showQuickJumper: false,
-    showSizeChanger: false,
+    showSizeChanger: true,
     position: ['bottomCenter']
   },
   ghost: false,
@@ -151,7 +155,9 @@ export const PROTABLE_OPTIONS_PUBLIC: any = {
  */
 export const NORMAL_MODAL_OPTIONS = {
   width: '50%',
-  bodyStyle: { padding: '20px 10px 10px' },
+  styles: {
+    body: { padding: '20px 10px 10px' }
+  },
   destroyOnClose: true,
   maskClosable: false
 };
@@ -198,6 +204,7 @@ export const DIALECT = {
   PYTHON_LONG: 'python',
   YML: 'yml',
   YAML: 'yaml',
+  CONF: 'conf',
   SH: 'sh',
   BASH: 'bash',
   CMD: 'cmd',
@@ -206,18 +213,23 @@ export const DIALECT = {
   SQL: 'sql',
   JAVASCRIPT: 'javascript',
   FLINKJAR: 'flinkjar',
+  JAR: 'jar',
+  ZIP: 'zip',
+  TAR: 'tar',
+  TAR_GZ: 'gz',
   FLINKSQLENV: 'flinksqlenv',
   MYSQL: 'mysql',
   ORACLE: 'oracle',
   SQLSERVER: 'sqlserver',
   POSTGRESQL: 'postgresql',
-  CLICKHOUSE: 'clickHouse',
+  CLICKHOUSE: 'clickhouse',
   DORIS: 'doris',
   HIVE: 'hive',
   PHOENIX: 'phoenix',
-  STARROCKS: 'starRocks',
+  STARROCKS: 'starrocks',
   PRESTO: 'presto',
-  KUBERNETES_APPLICATION: 'kubernetesapplication'
+  TERMINAL: 'terminal',
+  PAIMON: 'paimon'
 };
 
 export const RUN_MODE = {

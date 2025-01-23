@@ -19,11 +19,13 @@
 
 package org.dinky.controller;
 
-import org.dinky.data.annotation.Log;
+import org.dinky.data.annotations.Log;
+import org.dinky.data.constant.PermissionConstants;
+import org.dinky.data.dto.RoleDTO;
 import org.dinky.data.enums.BusinessType;
-import org.dinky.data.model.Role;
-import org.dinky.data.model.User;
-import org.dinky.data.model.UserRole;
+import org.dinky.data.model.rbac.Role;
+import org.dinky.data.model.rbac.User;
+import org.dinky.data.model.rbac.UserRole;
 import org.dinky.data.result.ProTableResult;
 import org.dinky.data.result.Result;
 import org.dinky.service.RoleService;
@@ -43,6 +45,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import cn.hutool.core.lang.Dict;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
@@ -54,6 +59,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @Api(tags = "Role Controller")
 @RequestMapping("/api/role")
+@SaCheckLogin
 @RequiredArgsConstructor
 public class RoleController {
 
@@ -63,21 +69,24 @@ public class RoleController {
     /**
      * create or update role
      *
-     * @param role {@link Role}
+     * @param roleDTO {@link Role}
      * @return {@link Role} of {@link Void}
      */
     @PutMapping("/addedOrUpdateRole")
     @ApiOperation("Insert Or Update Role")
     @Log(title = "Insert Or Update Role", businessType = BusinessType.INSERT_OR_UPDATE)
     @ApiImplicitParam(
-            name = "role",
-            value = "role",
+            name = "roleDTO",
+            value = "RoleDTO",
             required = true,
-            dataType = "Role",
+            dataType = "RoleDTO",
             paramType = "body",
-            dataTypeClass = Role.class)
-    public Result<Void> addedOrUpdateRole(@RequestBody Role role) {
-        return roleService.addedOrUpdateRole(role);
+            dataTypeClass = RoleDTO.class)
+    @SaCheckPermission(
+            value = {PermissionConstants.AUTH_ROLE_ADD, PermissionConstants.AUTH_ROLE_EDIT},
+            mode = SaMode.OR)
+    public Result<Void> addedOrUpdateRole(@RequestBody RoleDTO roleDTO) {
+        return roleService.addedOrUpdateRole(roleDTO);
     }
 
     /**
@@ -95,6 +104,7 @@ public class RoleController {
             dataType = "Integer",
             paramType = "query",
             dataTypeClass = Integer.class)
+    @SaCheckPermission(value = PermissionConstants.AUTH_ROLE_DELETE)
     public Result<Void> deleteRoleById(@RequestParam Integer id) {
         return roleService.deleteRoleById(id);
     }
@@ -154,6 +164,7 @@ public class RoleController {
             dataType = "Integer",
             paramType = "query",
             dataTypeClass = Integer.class)
+    @SaCheckPermission(value = PermissionConstants.AUTH_ROLE_VIEW_USER_LIST)
     public Result<List<User>> getUserListByRoleId(@RequestParam Integer roleId) {
         List<User> userRoleList = roleService.getUserListByRoleId(roleId);
         return Result.succeed(userRoleList);

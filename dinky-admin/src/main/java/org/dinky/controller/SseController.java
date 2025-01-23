@@ -19,47 +19,33 @@
 
 package org.dinky.controller;
 
-import org.dinky.service.MonitorService;
-import org.dinky.sse.SseEmitterUTF8;
-
-import java.util.concurrent.TimeUnit;
-
-import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import cn.hutool.core.date.DateUtil;
-import cn.hutool.core.lang.Opt;
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @Api(tags = "SSE Controller")
 @RequestMapping("/api/sse")
 @RequiredArgsConstructor
+@SaCheckLogin
 public class SseController {
-    private final MonitorService monitorService;
 
-    @GetMapping(value = "/getLastUpdateData", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @ApiOperation("Get Last Update Data")
-    @ApiImplicitParam(name = "lastTime", value = "last time", required = false, dataType = "Long", paramType = "query")
-    public SseEmitter getLastUpdateData(Long lastTime) {
-        SseEmitter emitter = new SseEmitterUTF8(TimeUnit.MINUTES.toMillis(30));
-        return monitorService.sendLatestData(
-                emitter,
-                DateUtil.date(Opt.ofNullable(lastTime).orElse(DateUtil.date().getTime())),
-                null);
-    }
-
-    @GetMapping(value = "/getJvmInfo", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @ApiOperation("Get JVM Info")
-    @ApiImplicitParam(name = "lastTime", value = "last time", required = false, dataType = "Long", paramType = "query")
-    public SseEmitter getJvmInfo(Long lastTime) {
-        SseEmitter emitter = new SseEmitterUTF8(TimeUnit.MINUTES.toMillis(30));
-        return monitorService.sendJvmInfo(emitter);
-    }
+    //    @PostMapping(value = "/subscribeTopic")
+    //    @ApiOperation("subscribeTopic")
+    //    @ApiImplicitParam(name = "topics", value = "topics", required = true, dataType = "List")
+    //    public Result<Set<String>> subscribeTopic(@RequestBody SseSubscribeDTO subscribeDTO) {
+    //        Set<String> b = SseSessionContextHolder.subscribeTopic(subscribeDTO.getSessionKey(),
+    // subscribeDTO.getTopics());
+    //        return Result.succeed(b, Status.SUCCESS);
+    //    }
+    //
+    //    @GetMapping(value = "/connect", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    //    @ApiOperation("Connect Sse")
+    //    @ApiImplicitParam(name = "sessionKey", value = "Session unique key", required = true, dataType = "String")
+    //    public SseEmitter connect(String sessionKey) {
+    //        return SseSessionContextHolder.connectSession(sessionKey);
+    //    }
 }

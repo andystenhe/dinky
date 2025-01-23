@@ -23,11 +23,12 @@ import org.dinky.assertion.Asserts;
 import org.dinky.data.model.Column;
 import org.dinky.data.model.QueryData;
 import org.dinky.data.model.Table;
+import org.dinky.metadata.config.AbstractJdbcConfig;
 import org.dinky.metadata.convert.ITypeConvert;
 import org.dinky.metadata.convert.MySqlTypeConvert;
+import org.dinky.metadata.enums.DriverType;
 import org.dinky.metadata.query.IDBQuery;
 import org.dinky.metadata.query.MySqlQuery;
-import org.dinky.utils.TextUtil;
 
 import java.text.MessageFormat;
 import java.util.HashMap;
@@ -35,11 +36,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import cn.hutool.core.util.NumberUtil;
+import cn.hutool.core.util.StrUtil;
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * MysqlDriver
  *
  * @since 2021/7/20 14:06
  */
+@Slf4j
 public class MySqlDriver extends AbstractJdbcDriver {
 
     @Override
@@ -48,13 +54,13 @@ public class MySqlDriver extends AbstractJdbcDriver {
     }
 
     @Override
-    public ITypeConvert getTypeConvert() {
+    public ITypeConvert<AbstractJdbcConfig> getTypeConvert() {
         return new MySqlTypeConvert();
     }
 
     @Override
     public String getType() {
-        return "MySql";
+        return DriverType.MYSQL.getValue();
     }
 
     @Override
@@ -80,7 +86,7 @@ public class MySqlDriver extends AbstractJdbcDriver {
     @Override
     public String generateCreateTableSql(Table table) {
         String genTableSql = genTable(table);
-        logger.info("Auto generateCreateTableSql {}", genTableSql);
+        log.info("Auto generateCreateTableSql {}", genTableSql);
         return genTableSql;
     }
 
@@ -101,16 +107,33 @@ public class MySqlDriver extends AbstractJdbcDriver {
                     } else if (null != column.getLength()) {
                         unit = String.format("(%s)", column.getLength());
                     }
+                    // Avoid parsing mismatches when the numeric data type column declared by UNSIGNED/ZEROFILL keyword
+                    String columnType = column.getType();
 
                     final String dv = column.getDefaultValue();
+                    // If it defaults to a numeric type, there is no need to include single quotes or a bit type
+                    String defaultValueTag = " DEFAULT '%s'";
+                    if (NumberUtil.isNumber(dv)
+                            || columnType.startsWith("bit")
+                            || (StrUtil.isNotEmpty(dv)
+                                    && dv.toLowerCase().trim().matches("^current_timestamp.*"))) {
+                        defaultValueTag = " DEFAULT %s";
+                    }
                     String defaultValue = Asserts.isNotNull(dv)
-                            ? String.format(" DEFAULT %s", "".equals(dv) ? "\"\"" : dv)
+                            ? String.format(defaultValueTag, StrUtil.isEmpty(dv) ? "''" : dv)
                             : String.format("%s NULL ", !column.isNullable() ? " NOT " : "");
+
+                    if (columnType.contains("unsigned") || columnType.contains("zerofill")) {
+                        String[] arr = columnType.split(" ");
+                        arr[0] = arr[0].concat(unit);
+                        columnType = String.join(" ", arr);
+                        unit = "";
+                    }
 
                     return String.format(
                             "  `%s`  %s%s%s%s%s",
                             column.getName(),
-                            column.getType(),
+                            columnType,
                             unit,
                             defaultValue,
                             column.isAutoIncrement() ? " AUTO_INCREMENT " : "",
@@ -146,24 +169,17 @@ public class MySqlDriver extends AbstractJdbcDriver {
 
         String where = queryData.getOption().getWhere();
         String order = queryData.getOption().getOrder();
-        String limitStart = queryData.getOption().getLimitStart();
-        String limitEnd = queryData.getOption().getLimitEnd();
+        int limitStart = queryData.getOption().getLimitStart();
+        int limitEnd = queryData.getOption().getLimitEnd();
 
         StringBuilder optionBuilder = new StringBuilder()
                 .append(String.format("select * from `%s`.`%s`", queryData.getSchemaName(), queryData.getTableName()));
 
-        if (where != null && !where.equals("")) {
+        if (where != null && !where.isEmpty()) {
             optionBuilder.append(" where ").append(where);
         }
-        if (order != null && !order.equals("")) {
+        if (order != null && !order.isEmpty()) {
             optionBuilder.append(" order by ").append(order);
-        }
-
-        if (TextUtil.isEmpty(limitStart)) {
-            limitStart = "0";
-        }
-        if (TextUtil.isEmpty(limitEnd)) {
-            limitEnd = "100";
         }
         optionBuilder.append(" limit ").append(limitStart).append(",").append(limitEnd);
 

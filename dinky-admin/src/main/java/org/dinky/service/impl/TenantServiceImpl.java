@@ -22,11 +22,11 @@ package org.dinky.service.impl;
 import org.dinky.assertion.Asserts;
 import org.dinky.context.TenantContextHolder;
 import org.dinky.data.constant.BaseConstant;
+import org.dinky.data.dto.AssignUserToTenantDTO;
 import org.dinky.data.enums.Status;
-import org.dinky.data.model.Role;
-import org.dinky.data.model.Tenant;
-import org.dinky.data.model.UserTenant;
-import org.dinky.data.params.AssignUserToTenantParams;
+import org.dinky.data.model.rbac.Role;
+import org.dinky.data.model.rbac.Tenant;
+import org.dinky.data.model.rbac.UserTenant;
 import org.dinky.data.result.Result;
 import org.dinky.mapper.TenantMapper;
 import org.dinky.mybatis.service.impl.SuperServiceImpl;
@@ -45,13 +45,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import cn.hutool.core.collection.CollectionUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TenantServiceImpl extends SuperServiceImpl<TenantMapper, Tenant> implements TenantService {
 
     @Resource
@@ -71,6 +74,22 @@ public class TenantServiceImpl extends SuperServiceImpl<TenantMapper, Tenant> im
             }
             tenant.setIsDelete(false);
             if (save(tenant)) {
+                // When adding a new tenant, the admin user will be added to the tenant by default
+                Long count = new LambdaQueryChainWrapper<>(userTenantService.getBaseMapper())
+                        .eq(UserTenant::getUserId, BaseConstant.ADMIN_ID)
+                        .eq(UserTenant::getTenantId, tenant.getId())
+                        .count();
+                if (count == 0) {
+                    UserTenant userTenant = new UserTenant();
+                    userTenant.setUserId(BaseConstant.ADMIN_ID);
+                    userTenant.setTenantId(tenant.getId());
+                    userTenant.setTenantAdminFlag(
+                            true); // set an admin flag to true,because the admin user is the tenant admin
+                    userTenantService.save(userTenant);
+                    log.info(
+                            "You have added tenant {}, and the system will automatically add the admin user to that tenant.",
+                            tenant.getTenantCode());
+                }
                 TenantContextHolder.set(tenant.getId());
                 return Result.succeed(Status.ADDED_SUCCESS);
             }
@@ -166,11 +185,11 @@ public class TenantServiceImpl extends SuperServiceImpl<TenantMapper, Tenant> im
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Result<Void> assignUserToTenant(AssignUserToTenantParams assignUserToTenantParams) {
+    public Result<Void> assignUserToTenant(AssignUserToTenantDTO assignUserToTenantDTO) {
         List<UserTenant> tenantUserList = new ArrayList<>();
-        Integer tenantId = assignUserToTenantParams.getTenantId();
+        Integer tenantId = assignUserToTenantDTO.getTenantId();
         userTenantService.remove(new LambdaQueryWrapper<UserTenant>().eq(UserTenant::getTenantId, tenantId));
-        List<Integer> userIds = assignUserToTenantParams.getUserIds();
+        List<Integer> userIds = assignUserToTenantDTO.getUserIds();
         for (Integer userId : userIds) {
             UserTenant userTenant = new UserTenant();
             userTenant.setTenantId(tenantId);

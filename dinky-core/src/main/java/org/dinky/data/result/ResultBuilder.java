@@ -19,7 +19,8 @@
 
 package org.dinky.data.result;
 
-import org.dinky.parser.SqlType;
+import org.dinky.data.job.SqlType;
+import org.dinky.job.JobHandler;
 
 import org.apache.flink.table.api.TableResult;
 
@@ -31,20 +32,51 @@ import org.apache.flink.table.api.TableResult;
 public interface ResultBuilder {
 
     static ResultBuilder build(
-            SqlType operationType, Integer maxRowNum, boolean isChangeLog, boolean isAutoCancel, String timeZone) {
+            SqlType operationType,
+            String id,
+            Integer maxRowNum,
+            boolean isChangeLog,
+            boolean isAutoCancel,
+            String timeZone) {
+        return build(operationType, id, maxRowNum, isChangeLog, isAutoCancel, timeZone, false);
+    }
+
+    static ResultBuilder build(
+            SqlType operationType,
+            String id,
+            Integer maxRowNum,
+            boolean isChangeLog,
+            boolean isAutoCancel,
+            String timeZone,
+            boolean isMockSinkFunction) {
         switch (operationType) {
             case SELECT:
-                return new SelectResultBuilder(maxRowNum, isChangeLog, isAutoCancel, timeZone);
+            case WITH:
+                return new SelectResultBuilder(id, maxRowNum, isChangeLog, isAutoCancel, timeZone);
             case SHOW:
             case DESC:
             case DESCRIBE:
-                return new ShowResultBuilder();
+                return new ShowResultBuilder(id);
             case INSERT:
-                return new InsertResultBuilder();
+            case EXECUTE:
+                return isMockSinkFunction
+                        ? new MockResultBuilder(id, maxRowNum, isChangeLog, isAutoCancel)
+                        : new InsertResultBuilder();
             default:
                 return new DDLResultBuilder();
         }
     }
 
     IResult getResult(TableResult tableResult);
+
+    /**
+     * Get the results and store them persistently.
+     *
+     * @param tableResult table result
+     * @param jobHandler  job handler
+     * @return IResult
+     */
+    default IResult getResultWithPersistence(TableResult tableResult, JobHandler jobHandler) {
+        return getResult(tableResult);
+    }
 }

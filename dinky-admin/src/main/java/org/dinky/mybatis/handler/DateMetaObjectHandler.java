@@ -19,6 +19,7 @@
 
 package org.dinky.mybatis.handler;
 
+import org.dinky.context.TenantContextHolder;
 import org.dinky.mybatis.properties.MybatisPlusFillProperties;
 
 import org.apache.ibatis.reflection.MetaObject;
@@ -27,14 +28,20 @@ import java.time.LocalDateTime;
 
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 
+import cn.dev33.satoken.spring.SpringMVCUtil;
+import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.core.lang.Opt;
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * DateMeta Object Handler
  *
  * @since 2021/5/25
  */
+@Slf4j
 public class DateMetaObjectHandler implements MetaObjectHandler {
 
-    private MybatisPlusFillProperties mybatisPlusFillProperties;
+    private final MybatisPlusFillProperties mybatisPlusFillProperties;
 
     public DateMetaObjectHandler(MybatisPlusFillProperties mybatisPlusFillProperties) {
         this.mybatisPlusFillProperties = mybatisPlusFillProperties;
@@ -54,17 +61,69 @@ public class DateMetaObjectHandler implements MetaObjectHandler {
     public void insertFill(MetaObject metaObject) {
         Object createTime = getFieldValByName(mybatisPlusFillProperties.getCreateTimeField(), metaObject);
         Object updateTime = getFieldValByName(mybatisPlusFillProperties.getUpdateTimeField(), metaObject);
-        Object name = getFieldValByName(mybatisPlusFillProperties.getName(), metaObject);
         if (createTime == null) {
             setFieldValByName(mybatisPlusFillProperties.getCreateTimeField(), LocalDateTime.now(), metaObject);
         }
         if (updateTime == null) {
             setFieldValByName(mybatisPlusFillProperties.getUpdateTimeField(), LocalDateTime.now(), metaObject);
         }
+
+        try {
+            if (SpringMVCUtil.isWeb() && StpUtil.isLogin()) {
+                int loginIdAsInt = StpUtil.getLoginIdAsInt();
+                setFillFieldValue(metaObject, loginIdAsInt);
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Ignore set creater filed, because userId cant't get, Please check if your account is logged in normally or if it has been taken offline",
+                    e);
+        }
+    }
+
+    private void setFillFieldValue(MetaObject metaObject, int userId) {
+        Object creator = getFieldValByName(mybatisPlusFillProperties.getCreatorField(), metaObject);
+        Object updater = getFieldValByName(mybatisPlusFillProperties.getUpdaterField(), metaObject);
+        Object operator = getFieldValByName(mybatisPlusFillProperties.getOperatorField(), metaObject);
+        Object tenantId = getFieldValByName(mybatisPlusFillProperties.getTenantIdField(), metaObject);
+
+        if (creator == null) {
+            setFieldValByName(mybatisPlusFillProperties.getCreatorField(), userId, metaObject);
+        }
+        if (updater == null) {
+            setFieldValByName(mybatisPlusFillProperties.getUpdaterField(), userId, metaObject);
+        }
+        if (operator == null) {
+            setFieldValByName(mybatisPlusFillProperties.getOperatorField(), userId, metaObject);
+        }
+        if (tenantId == null) {
+            try {
+                Opt<Object> loginTenantId = Opt.ofNullable(TenantContextHolder.get());
+                loginTenantId.ifPresent(loginTenantId1 -> {
+                    if (loginTenantId1 instanceof Integer) {
+                        setFieldValByName(mybatisPlusFillProperties.getTenantIdField(), loginTenantId1, metaObject);
+                    }
+                });
+            } catch (Exception e) {
+                log.warn(
+                        "Ignore set tenantId filed, because tenantId cant't get, Please check if your account is logged in normally or if it has been taken offline",
+                        e);
+            }
+        }
     }
 
     @Override
     public void updateFill(MetaObject metaObject) {
         setFieldValByName(mybatisPlusFillProperties.getUpdateTimeField(), LocalDateTime.now(), metaObject);
+        try {
+            if (SpringMVCUtil.isWeb() && StpUtil.isLogin()) {
+                int loginIdAsInt = StpUtil.getLoginIdAsInt();
+                setFieldValByName(mybatisPlusFillProperties.getUpdaterField(), loginIdAsInt, metaObject);
+                setFieldValByName(mybatisPlusFillProperties.getOperatorField(), loginIdAsInt, metaObject);
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Ignore set update,operator filed, because userId cant't get, Please check if your account is logged in normally or if it has been taken offline",
+                    e);
+        }
     }
 }

@@ -19,41 +19,59 @@
 
 package org.dinky.data.result;
 
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Objects;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * ResultPool
  *
  * @since 2021/7/1 22:20
  */
+@Slf4j
 public final class ResultPool {
 
     private ResultPool() {}
 
-    private static final Map<String, SelectResult> results = new ConcurrentHashMap<>();
+    private static final Map<String, SelectResult> RESULTS = Maps.newConcurrentMap();
 
     public static boolean containsKey(String key) {
-        return results.containsKey(key);
+        return RESULTS.containsKey(key);
     }
 
     public static void put(SelectResult result) {
-        results.put(result.getJobId(), result);
+        RESULTS.put(result.getJobId(), result);
+        log.info("Put job result into cache. Job id: {}", result.getJobId());
+        log.info("Number of results in the running: {}", RESULTS.size());
     }
 
     public static SelectResult get(String key) {
-        return results.getOrDefault(key, SelectResult.buildDestruction(key));
+        SelectResult selectResult = RESULTS.get(key);
+        if (Objects.nonNull(selectResult)) {
+            return selectResult;
+        }
+        return SelectResult.buildDestruction(key);
     }
 
     public static boolean remove(String key) {
-        if (results.containsKey(key)) {
-            results.remove(key);
+        log.info("Remove job result from cache. Job id: {}", key);
+        if (RESULTS.containsKey(key)) {
+            RESULTS.remove(key);
             return true;
         }
         return false;
     }
 
     public static void clear() {
-        results.clear();
+        RESULTS.clear();
+    }
+
+    public static List<String> getJobIds() {
+        return Lists.newArrayList(RESULTS.keySet());
     }
 }

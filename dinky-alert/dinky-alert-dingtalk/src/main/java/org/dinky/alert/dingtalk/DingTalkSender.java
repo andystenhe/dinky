@@ -21,10 +21,11 @@ package org.dinky.alert.dingtalk;
 
 import org.dinky.alert.AlertResult;
 import org.dinky.alert.AlertSendResponse;
+import org.dinky.alert.dingtalk.params.DingTalkParams;
 import org.dinky.assertion.Asserts;
 import org.dinky.data.model.ProxyConfig;
 import org.dinky.utils.HttpUtils;
-import org.dinky.utils.JSONUtil;
+import org.dinky.utils.JsonUtils;
 
 import org.apache.commons.codec.binary.Base64;
 
@@ -40,52 +41,39 @@ import org.slf4j.LoggerFactory;
 
 /**
  * DingTalkSender
- *
  */
 public class DingTalkSender {
     private static final Logger logger = LoggerFactory.getLogger(DingTalkSender.class);
-    private final String url;
-    private final String keyword;
-    private final String secret;
-    private final String atMobiles;
-    private final Boolean atAll;
+
+    private final DingTalkParams dingTalkParams;
     private ProxyConfig proxyConfig = null;
 
-    DingTalkSender(Map<String, String> config) {
-        url = config.get(DingTalkConstants.WEB_HOOK);
-        keyword = config.get(DingTalkConstants.KEYWORD);
-        secret = config.get(DingTalkConstants.SECRET);
-
-        atMobiles = config.get(DingTalkConstants.AT_MOBILES);
-        //        String atUserIds = config.get(DingTalkConstants.AT_USERIDS);
-        atAll = Boolean.valueOf(config.get(DingTalkConstants.AT_ALL));
-
-        Boolean enableProxy = Boolean.valueOf(config.get(DingTalkConstants.PROXY_ENABLE));
-        if (Boolean.TRUE.equals(enableProxy)) {
-            Integer port = Integer.parseInt(config.get(DingTalkConstants.PORT));
-            String proxy = config.get(DingTalkConstants.PROXY);
-            String user = config.get(DingTalkConstants.USER);
-            String password = config.get(DingTalkConstants.PASSWORD);
-            proxyConfig = new ProxyConfig(proxy, port, user, password);
+    DingTalkSender(Map<String, Object> config) {
+        this.dingTalkParams = JsonUtils.toBean(JsonUtils.toJsonString(config), DingTalkParams.class);
+        Asserts.checkNotNull(dingTalkParams, "dingTalkParams is null");
+        if (Boolean.TRUE.equals(dingTalkParams.isEnableProxy())) {
+            proxyConfig = new ProxyConfig(
+                    dingTalkParams.getHostname(),
+                    dingTalkParams.getPort(),
+                    dingTalkParams.getUser(),
+                    dingTalkParams.getPassword());
         }
     }
 
     /**
      * build template params
      *
-     * @param title
-     * @param content
-     * @return
+     * @param title  title
+     * @param content content
+     * @return Map<String, Object>
      */
     public Map<String, Object> buildTemplateParams(String title, String content) {
         Map<String, Object> params = new HashMap<>();
         params.put(DingTalkConstants.ALERT_TEMPLATE_TITLE, title);
         params.put(DingTalkConstants.ALERT_TEMPLATE_CONTENT, content);
-        params.put(DingTalkConstants.ALERT_TEMPLATE_KEYWORD, keyword);
-        String[] atMobile = Asserts.isNullString(atMobiles) ? new String[] {} : atMobiles.split(",");
-        params.put(DingTalkConstants.ALERT_TEMPLATE_AT_MOBILE, atMobile);
-        params.put(DingTalkConstants.ALERT_TEMPLATE_AT_MOBILES, atMobiles);
-        params.put(DingTalkConstants.ALERT_TEMPLATE_AT_ALL, atAll.toString());
+        params.put(DingTalkConstants.ALERT_TEMPLATE_KEYWORD, dingTalkParams.getKeyword());
+        params.put(DingTalkConstants.ALERT_TEMPLATE_AT_MOBILES, dingTalkParams.getAtMobiles());
+        params.put(DingTalkConstants.ALERT_TEMPLATE_AT_ALL, dingTalkParams.isAtAll());
         return params;
     }
 
@@ -98,10 +86,12 @@ public class DingTalkSender {
     public AlertResult send(String content) {
         AlertResult alertResult;
         try {
-            String httpUrl = Asserts.isNotNullString(secret) ? generateSignedUrl() : url;
+            String httpUrl = Asserts.isNotNullString(dingTalkParams.getSecret())
+                    ? generateSignedUrl()
+                    : dingTalkParams.getWebhook();
             return checkMsgResult(HttpUtils.post(httpUrl, content, proxyConfig));
         } catch (Exception e) {
-            logger.info("send ding talk alert msg  exception : {}", e.getMessage());
+            logger.error("send ding talk alert msg  exception : {}", e.getMessage());
             alertResult = new AlertResult();
             alertResult.setSuccess(false);
             alertResult.setMessage("send ding talk alert fail.");
@@ -116,24 +106,24 @@ public class DingTalkSender {
      */
     private String generateSignedUrl() {
         Long timestamp = System.currentTimeMillis();
-        String stringToSign = timestamp + DingTalkConstants.ENTER_LINE + secret;
+        String stringToSign = timestamp + DingTalkConstants.ENTER_LINE + dingTalkParams.getSecret();
         String sign = "";
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret.getBytes(DingTalkConstants.CHARSET), "HmacSHA256"));
+            mac.init(new SecretKeySpec(dingTalkParams.getSecret().getBytes(DingTalkConstants.CHARSET), "HmacSHA256"));
             byte[] signData = mac.doFinal(stringToSign.getBytes(DingTalkConstants.CHARSET));
             sign = URLEncoder.encode(new String(Base64.encodeBase64(signData)), DingTalkConstants.CHARSET);
         } catch (Exception e) {
             logger.error("generate sign error, message:{}", e.getMessage());
         }
-        return url + "&timestamp=" + timestamp + "&sign=" + sign;
+        return dingTalkParams.getWebhook() + "&timestamp=" + timestamp + "&sign=" + sign;
     }
 
     /**
      * Check Msg Result
      *
-     * @param result
-     * @return
+     * @param result result
+     * @return AlertResult
      */
     private AlertResult checkMsgResult(String result) {
         AlertResult alertResult = new AlertResult();
@@ -144,7 +134,7 @@ public class DingTalkSender {
             logger.info("send ding talk msg error,ding talk server resp is null");
             return alertResult;
         }
-        AlertSendResponse response = JSONUtil.parseObject(result, AlertSendResponse.class);
+        AlertSendResponse response = JsonUtils.parseObject(result, AlertSendResponse.class);
         if (null == response) {
             alertResult.setMessage("send ding talk msg fail");
             logger.info("send ding talk msg error,resp error");
